@@ -1,0 +1,12 @@
+{
+  "name": "tsa",
+  "version": "0.0.3",
+  "description": "Topic-Sentiment Authorship",
+  "homepage": "https://github.com/chbrown/tsa",
+  "license": "MIT",
+  "repository": "git://github.com/chbrown/tsa.git",
+  "author": {
+    "name": "Christopher Brown",
+    "email": "io@henrian.com"
+  }
+}

@@ -1,0 +1,9 @@
+.DS_Store
+*.log
+*.aux
+
+/build/
+/dist/
+/node_modules/
+/*.egg
+/*.egg-info
