@@ -17,10 +17,10 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
-        'justext',
-        'psycopg2',
-        'requests',
-        'sqlalchemy',
+        'justext >= 2.0.0',
+        'psycopg2 >= 2.5.1',
+        'requests >= 1.2.3',
+        'sqlalchemy >= 0.8.2',
     ],
     entry_points={
         'console_scripts': [
