@@ -17,7 +17,9 @@ setup(
     include_package_data=True,
     zip_safe=False,
     install_requires=[
+        'gensim >= 0.8.6',
         'justext >= 2.0.0',
+        'openpyxl >= 1.6.2',
         'psycopg2 >= 2.5.1',
         'requests >= 1.2.3',
         'sqlalchemy >= 0.8.2',

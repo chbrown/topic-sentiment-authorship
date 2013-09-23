@@ -1,5 +1,13 @@
 import sys
 
+logging_formats = {
+    'dated': '%(levelname)s\t%(asctime)s\t%(message)s',
+    'interactive': '%(levelname)-8s %(message)s (%(filename)s:%(lineno)d)',
+}
+
+import logging
+logging.basicConfig(format=logging_formats['interactive'], level=logging.INFO)
+
 
 def stdout(bytes=''):
     sys.stdout.write(bytes)
