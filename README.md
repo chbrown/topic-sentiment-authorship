@@ -33,6 +33,10 @@ Topic 9:
 
 ---
 
+## Notes
+
+See `/usr/share/postgresql/tsearch_data/english.stop` for postgres' listing of stop words.
+
 ## License
 
 Copyright © 2012–2013 Christopher Brown. [MIT Licensed](LICENSE).
