@@ -4,8 +4,6 @@ Tools built on computational linguistic concepts to accompany my research at the
 
 ## Results
 
----
-
 `gensim` LDA, 10 topics, tf-idf preprocessing, on the 6,379 linked pages with content.
 
 | Topic # | Top 20 tokens |
