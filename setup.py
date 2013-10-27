@@ -23,6 +23,7 @@ setup(
         'psycopg2 >= 2.5.1',
         'requests >= 1.2.3',
         'sqlalchemy >= 0.8.2',
+        'scikit-learn >= 0.14.1',
     ],
     entry_points={
         'console_scripts': [
