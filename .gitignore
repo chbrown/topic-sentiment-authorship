@@ -2,6 +2,7 @@
 *.log
 *.aux
 *.pyc
+*.pickle
 
 /build/
 /dist/
