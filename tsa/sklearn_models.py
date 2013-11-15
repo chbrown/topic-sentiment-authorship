@@ -10,7 +10,7 @@ from sklearn.decomposition import PCA
 
 from tsa.data.sb5b import links as sb5b_links, tweets as sb5b_tweets
 from tsa.lib.cache import pickleable
-from tsa.viz.terminal import hist
+from viz.terminal import hist
 
 # import random
 import logging
