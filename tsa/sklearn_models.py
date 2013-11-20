@@ -1,16 +1,21 @@
 from collections import defaultdict
 
+from viz import histogram, terminal
+from viz.histogram import hist
+
 import numpy as np
+np.set_printoptions(edgeitems=20, threshold=500, linewidth=terminal.width())
 import scipy
 
 from sklearn import cross_validation, metrics
-from sklearn import linear_model, naive_bayes, neighbors, svm
+from sklearn import linear_model, naive_bayes, neighbors, svm, ensemble, cluster, decomposition
 from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
-from sklearn.decomposition import PCA
+from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
 
 from tsa.data.sb5b import links as sb5b_links, tweets as sb5b_tweets
 from tsa.lib.cache import pickleable
-from viz.terminal import hist
+
+import IPython
 
 # import random
 import logging
@@ -55,7 +60,7 @@ def links_scikit():
     # eg., 1000 documents, 2118-long vocabulary (with brown from the top)
     print count_vectors_index_tokens.shape
 
-    pca = PCA(2)
+    pca = decomposition.PCA(2)
     doc_pca_data = pca.fit_transform(tfidf_counts.toarray())
 
     print doc_pca_data
@@ -105,58 +110,112 @@ def tweets_scikit():
 
     # calculate labels, y
     corpus_labels = [tweet['Label'] for tweet in tweets]
-    y = [label_ids[corpus_label] for corpus_label in corpus_labels]
+    y = np.array([label_ids[corpus_label] for corpus_label in corpus_labels])
 
     # calculate data, X
     corpus_strings = [tweet['Tweet'] for tweet in tweets]
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.95)
+    count_vectorizer = CountVectorizer(min_df=2, max_df=0.95, ngram_range=(1, 2),
+        token_pattern=ur'\b\S+\b')
     # X = corpus_vectors
     corpus_count_vectors = count_vectorizer.fit_transform(corpus_strings)
+    corpus_types = np.array(count_vectorizer.get_feature_names())
 
     # TF-IDF was actually performing worse, last time I compared to normal counts.
     # tfidf_transformer = TfidfTransformer()
     # corpus_tfidf_vectors = tfidf_transformer.fit_transform(corpus_count_vectors)
 
-    # some models require dense arrays
+    # some models require dense arrays (count_vectorizer.transform gives sparse output normally)
     X = corpus_count_vectors.toarray()
+    print 'X.shape', X.shape
+
+    # k_means = cluster.KMeans(n_clusters=2)
+    # k_means.fit(X)
+    # IPython.embed()
 
     for k, (train_indices, test_indices) in enumerate(cross_validation.KFold(N, K_folds, shuffle=True)):
-        train_X = [X[i] for i in train_indices]
-        train_y = [y[i] for i in train_indices]
-        test_X = [X[i] for i in test_indices]
-        test_y = [y[i] for i in test_indices]
+        # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20, random_state=42)
+        train_X, test_X = X[train_indices], X[test_indices]
+        train_y, test_y = y[train_indices], y[test_indices]
 
         logger.info('k=%d; %d train, %d test.', k, len(train_indices), len(test_indices))
 
         # train and predict
         model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
-        # model = svm.SVC(gamma=2, C=1)
+        # model = linear_model.LogisticRegression(penalty='l1')
+        # model = linear_model.LinearRegression(normalize=True)
+        # model = svm.LinearSVC(penalty='l2', dual=False, C=2.0)
+        # model = svm.SVC(probability=True)
         # model = svm.LinearSVC(penalty='l2', dual=False, tol=0.0001, C=1.0)
+        # model = ensemble.RandomForestClassifier(n_estimators=10, criterion='gini',
+        #     max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
+        #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
+        #     min_density=None, compute_importances=None)
+        # model = linear_model.SGDClassifier(loss='log')
         # model = naive_bayes.MultinomialNB()
         # neighbors.KNeighborsClassifier(3)
         # linear_model.LogisticRegression()
         model.fit(train_X, train_y)
-        logger.info('Model.classes_: %s', [labels[class_] for class_ in model.classes_])
+        logger.info('Model.classes_: %s', ', '.join(labels[class_] for class_ in model.classes_))
+
+        # classif_selector = SelectKBest(f_classif, k=100)
+        # classif_selector.fit(train_X, train_y)
+        # print 'classif_selector', classif_selector
+
+        # regression_selector = SelectKBest(f_regression, k=100)
+        # regression_selector.fit(train_X, train_y)
+        # print 'regression_selector', regression_selector
+
+        train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
+        train_chi2_pval_asc = np.argsort(train_chi2_pval)
+        train_classif_F, train_classif_pval = f_classif(train_X, train_y)
+
+        # f_regression help:
+        #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
+        # other nice ML variable selection help:
+        #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
+        #   http://www.quora.com/What-are-some-feature-selection-methods
+        train_F, train_pval = f_regression(train_X, train_y)
+        # train_pval.shape = (4729,)
+        ranked_types = corpus_types[np.argsort(train_pval)]
+        # ranked_types = corpus_types[np.argsort(-train_F)]
+
+        # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
+        # print 'train_F_hmean', train_F_hmean
+        neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
+        print '-train_pval_hmean', neg_train_pval_hmean
+
+        # regression_selector = SelectKBest(f_regression, k=100)
+        # print 'regression_selector', regression_selector
+        # top_k_corpus_types = corpus_types[regression_selector.get_support()]
+        # print 'coef_', model.coef_
+        # coef_sort = np.argsort(model.coef_)
+        # print corpus_types[np.argsort(model.coef_)]
 
         # predict using the model just trained
         # pred_y = model.predict(test_X)
 
-        pred_probabilities = model.predict_proba(test_X)
-        # predicts_proba returns N rows, each C-long, where C is the number of labels
-        # with this, we can use np.array.argmax to get the class names we would have gotten with model.predict()
-        # axis=0 will give us the max for each column (not very useful)
-        # axis=1 will give us the max for each row (what we want)
+        pred_certainty = np.repeat(np.nan, test_y.shape)
+        print 'pred_certainty.shape', pred_certainty.shape
+        if hasattr(model, 'predict_proba'):
+            pred_probabilities = model.predict_proba(test_X)
+            # predicts_proba returns N rows, each C-long, where C is the number of labels
+            # with this, we can use np.array.argmax to get the class names we would have gotten with model.predict()
+            # axis=0 will give us the max for each column (not very useful)
+            # axis=1 will give us the max for each row (what we want)
+            # find best guess (same as model.predict(...), I think)
+            pred_y = pred_probabilities.argmax(axis=1)
+            # pred_certainty now ranges between 0 and 1,
+            #   a pred_certainty of 1 means the prediction probabilities were extreme,
+            #                       0 means they were near 0.5 each
+            # hmean takes the harmonic mean of its arguments
+            if (pred_probabilities > 0).all():
+                pred_certainty = 1 - 2 * scipy.stats.hmean(pred_probabilities, axis=1)
+        else:
+            logger.info('predict_proba is unavailable for this model: %s', model)
+            pred_y = model.predict(test_X)
 
-        # find best guess (same as model.predict(...), I think)
-        pred_y = pred_probabilities.argmax(axis=1)
-        # pred_certainty now ranges between 0 and 1, where 1 means the prediction probabilities were extreme,
-        # and 0 means they were near 0.5 each
-        pred_certainty = 1 - 2 * scipy.stats.hmean(pred_probabilities, axis=1)
-
-        # map(whichmax, pred_probabilities)
-
-        # for pred_probs in pred_probabilities:
-            # print 'pred_probs:', pred_probs, pred_probs.argmax()
+        # IPython.embed()
+        # %kill_embedded
 
         # if k == 9:
         #     print '!!! randomizing predictions'
@@ -179,11 +238,14 @@ def tweets_scikit():
                 print
                 # print 'vec', corpus_count_vectors[y_i]
 
-        print '*: certainty mean=%0.5f' % np.mean(pred_certainty)
-        hist(pred_certainty, range=(0, 1))
-        for certainty_name, certainty_values in certainties.items():
-            print '%s: certainty mean=%0.5f' % (certainty_name, np.mean(certainty_values))
-            hist(certainty_values, range=(0, 1))
+        if np.isnan(pred_certainty).any():
+            print 'certainty is unavailable'
+        else:
+            print '*: certainty mean=%0.5f' % np.mean(pred_certainty)
+            histogram.hist(pred_certainty, range=(0, 1))
+            for certainty_name, certainty_values in certainties.items():
+                print '%s: certainty mean=%0.5f' % (certainty_name, np.mean(certainty_values))
+                histogram.hist(certainty_values, range=(0, 1))
 
         # evaluate
         print 'accuracy: %0.5f' % metrics.accuracy_score(test_y, pred_y)
