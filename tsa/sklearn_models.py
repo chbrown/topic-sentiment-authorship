@@ -1,7 +1,10 @@
+import re
 from collections import defaultdict
 
 from viz import histogram, terminal
 from viz.histogram import hist
+
+from lexicons import liwc
 
 import numpy as np
 np.set_printoptions(edgeitems=20, threshold=500, linewidth=terminal.width())
@@ -9,7 +12,9 @@ import scipy
 
 from sklearn import cross_validation, metrics
 from sklearn import linear_model, naive_bayes, neighbors, svm, ensemble, cluster, decomposition
-from sklearn.feature_extraction.text import CountVectorizer, TfidfTransformer
+from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
+from sklearn.feature_extraction import DictVectorizer
+# from tsa.lib.text import CountVectorizer
 from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
 
 from tsa.data.sb5b import links as sb5b_links, tweets as sb5b_tweets
@@ -114,23 +119,32 @@ def tweets_scikit():
 
     # calculate data, X
     corpus_strings = [tweet['Tweet'] for tweet in tweets]
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.95, ngram_range=(1, 2),
+    count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 2),
         token_pattern=ur'\b\S+\b')
-    # X = corpus_vectors
     corpus_count_vectors = count_vectorizer.fit_transform(corpus_strings)
-    corpus_types = np.array(count_vectorizer.get_feature_names())
+    # liwc analysis:
+    corpus_categories = [liwc.text_categories(document) for document in corpus_strings]
+    category_vectorizer = CountVectorizer(analyzer=lambda x: x)
+    corpus_category_vectors = category_vectorizer.fit_transform(corpus_categories)
+    # get the BOW vocabulary
 
     # TF-IDF was actually performing worse, last time I compared to normal counts.
     # tfidf_transformer = TfidfTransformer()
     # corpus_tfidf_vectors = tfidf_transformer.fit_transform(corpus_count_vectors)
 
     # some models require dense arrays (count_vectorizer.transform gives sparse output normally)
-    X = corpus_count_vectors.toarray()
+    X = np.hstack((corpus_count_vectors.toarray(), corpus_category_vectors.toarray()))
+    # X = scipy.sparse.hstack((corpus_count_vectors, corpus_category_vectors)).toarray()
     print 'X.shape', X.shape
+
+    dimension_names = np.array(
+        count_vectorizer.get_feature_names() +
+        # prepend the liwc categories with a percent sign
+        ['%' + category for category in category_vectorizer.get_feature_names()])
+    # categories = np.array(count_vectorizer.get_feature_names())
 
     # k_means = cluster.KMeans(n_clusters=2)
     # k_means.fit(X)
-    # IPython.embed()
 
     for k, (train_indices, test_indices) in enumerate(cross_validation.KFold(N, K_folds, shuffle=True)):
         # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20, random_state=42)
@@ -138,6 +152,30 @@ def tweets_scikit():
         train_y, test_y = y[train_indices], y[test_indices]
 
         logger.info('k=%d; %d train, %d test.', k, len(train_indices), len(test_indices))
+
+        # dimension reduction
+        # f_regression help:
+        #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
+        # other nice ML variable selection help:
+        #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
+        #   http://www.quora.com/What-are-some-feature-selection-methods
+        # train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
+        # train_classif_F, train_classif_pval = f_classif(train_X, train_y)
+        train_F, train_pval = f_regression(train_X, train_y)
+        # train_pval.shape = (4729,)
+        ranked_dimensions = np.argsort(train_pval)
+        ranked_names = dimension_names[np.argsort(train_pval)]
+        top_k = 100
+
+        # train_X.shape: (4500, 18884) -> (4500, 100)
+        train_X = train_X[:, ranked_dimensions[:top_k]]
+        # train_X.shape: (500, 18884) -> (500, 100)
+        test_X = test_X[:, ranked_dimensions[:top_k]]
+
+        IPython.embed()
+
+        # train_X, test_X = X[train_indices], X[test_indices]
+        # train_y, test_y = y[train_indices], y[test_indices]
 
         # train and predict
         model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
@@ -165,28 +203,14 @@ def tweets_scikit():
         # regression_selector.fit(train_X, train_y)
         # print 'regression_selector', regression_selector
 
-        train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
-        train_chi2_pval_asc = np.argsort(train_chi2_pval)
-        train_classif_F, train_classif_pval = f_classif(train_X, train_y)
-
-        # f_regression help:
-        #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
-        # other nice ML variable selection help:
-        #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
-        #   http://www.quora.com/What-are-some-feature-selection-methods
-        train_F, train_pval = f_regression(train_X, train_y)
-        # train_pval.shape = (4729,)
-        ranked_types = corpus_types[np.argsort(train_pval)]
-        # ranked_types = corpus_types[np.argsort(-train_F)]
-
         # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
         # print 'train_F_hmean', train_F_hmean
-        neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
-        print '-train_pval_hmean', neg_train_pval_hmean
+        # neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
+        # print '-train_pval_hmean', neg_train_pval_hmean
 
         # regression_selector = SelectKBest(f_regression, k=100)
         # print 'regression_selector', regression_selector
-        # top_k_corpus_types = corpus_types[regression_selector.get_support()]
+        # top_k_corpus_types = dimension_names[regression_selector.get_support()]
         # print 'coef_', model.coef_
         # coef_sort = np.argsort(model.coef_)
         # print corpus_types[np.argsort(model.coef_)]
@@ -214,13 +238,10 @@ def tweets_scikit():
             logger.info('predict_proba is unavailable for this model: %s', model)
             pred_y = model.predict(test_X)
 
-        # IPython.embed()
-        # %kill_embedded
-
         # if k == 9:
         #     print '!!! randomizing predictions'
         #     pred_y = [random.choice((0, 1)) for _ in pred_y]
-        logger.info('Mispredictions')
+        # logger.info('Mispredictions')
 
         certainties = defaultdict(list)
         for test_i, (gold, pred, certainty) in enumerate(zip(test_y, pred_y, pred_certainty)):
@@ -248,9 +269,10 @@ def tweets_scikit():
                 histogram.hist(certainty_values, range=(0, 1))
 
         # evaluate
-        print 'accuracy: %0.5f' % metrics.accuracy_score(test_y, pred_y)
-        print 'f1-score: %0.5f' % metrics.f1_score(test_y, pred_y)
-        print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
+        print 'Accuracy: %0.5f, F1: %0.5f' % (
+            metrics.accuracy_score(test_y, pred_y),
+            metrics.f1_score(test_y, pred_y))
+        # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
         print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=labels)
 
 
