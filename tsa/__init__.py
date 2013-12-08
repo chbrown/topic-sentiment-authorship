@@ -2,7 +2,8 @@ import sys
 
 logging_formats = {
     'dated': '%(levelname)s\t%(asctime)s\t%(message)s',
-    'interactive': '%(levelname)-8s %(message)s (%(filename)s:%(lineno)d)',
+    'interactive': '%(levelname)-8s %(message)s',
+    'debugging': '%(levelname)-8s %(message)s (%(filename)s:%(lineno)d)'
 }
 
 import logging

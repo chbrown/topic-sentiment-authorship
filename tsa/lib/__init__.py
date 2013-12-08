@@ -1,3 +1,5 @@
+
+
 def whichmin(xs):
     # import operator
     # min_index, min_value = min(enumerate(values), key=operator.itemgetter(1))

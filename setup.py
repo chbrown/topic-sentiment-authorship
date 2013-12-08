@@ -27,6 +27,7 @@ setup(
     ],
     entry_points={
         'console_scripts': [
+            'hashtags=tsa.cli.hashtags:main'
         ],
     },
 )

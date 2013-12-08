@@ -1,40 +1,49 @@
-import re
-from collections import defaultdict
+import IPython
+import logging
+from viz import terminal
 
-from viz import histogram, terminal
-from viz.histogram import hist
-
-from lexicons import liwc
+# logging.basicConfig(format='%(levelname)-8s %(asctime)14s (%(name)s): %(message)s', level=17)
+logger = logging.getLogger(__name__)
+logger.level = 1
+# logger.critical('logger init: root.level = %s, logger.level = %s', logging.root.level, logger.level)
 
 import numpy as np
-np.set_printoptions(edgeitems=20, threshold=500, linewidth=terminal.width())
-import scipy
+np.set_printoptions(edgeitems=25, threshold=500, linewidth=1000)
+logger.debug('loaded numpy')
+# import scipy
+# logger.debug('loaded scipy')
+import pandas as pd
+pd.options.display.max_rows = 200
+pd.options.display.max_columns = 10
+pd.options.display.width = terminal.width()
+logger.debug('loaded pandas')
+import ggplot as gg
+logger.debug('loaded ggplot')
+
+# from viz.geom import hist
+# logger.debug('loaded viz')
+
+from lexicons import Liwc
+logger.debug('loaded lexicons')
 
 from sklearn import cross_validation, metrics
-from sklearn import linear_model, naive_bayes, neighbors, svm, ensemble, cluster, decomposition
+from sklearn import linear_model
+# from sklearn import naive_bayes
+# from sklearn import neighbors
+# from sklearn import svm
+# from sklearn import ensemble
+# from sklearn import cluster
+from sklearn import decomposition
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
-from sklearn.feature_extraction import DictVectorizer
+# from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
-from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
+# from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
+logger.debug('loaded sklearn')
 
-from tsa.data.sb5b import links as sb5b_links, tweets as sb5b_tweets
-from tsa.lib.cache import pickleable
+from tsa.lib import cache
+from tsa.scikit import explore_mispredictions, explore_uncertainty, margins
 
-import IPython
-
-# import random
-import logging
-logger = logging.getLogger(__name__)
-
-
-def unique(document):
-    # TODO: unique doesn't really belong here, but doesn't quite merit its own module
-    seen = {}
-    features = []
-    for token in document:
-        features.append(['UNIQUE'] if token not in seen else [])
-        seen[token] = 1
-    return features
+# from twilight.lib import tweets
 
 
 def links_scikit():
@@ -49,7 +58,8 @@ def links_scikit():
     # print docmatrix.shape, '->', U.shape, s.shape, V.shape
     maxlen = 10000
 
-    endpoints = sb5b_links.read(limit=1000)
+    import tsa.data.sb5b.links
+    endpoints = tsa.data.sb5b.links.read(limit=1000)
     corpus_strings = (endpoint.content[:maxlen] for endpoint in endpoints)
 
     count_vectorizer = CountVectorizer(min_df=2, max_df=0.95)
@@ -78,27 +88,24 @@ def links_scikit():
     #         print "%s,%.12f,%.12f" % (token, x, y)
 
 
+@cache.decorate('/tmp/sklearn_models-read_sb5b_tweets-min={per_label}.pickle')
+def read_tweets(labels=None, per_label=2500):
+    # ensure a For/Against 50/50 split with per_label per label
+    #   the different classes will be in order, by the way
+    label_groups = dict((label, []) for label in labels)
+    import tsa.data.sb5b.tweets
+    for tweet in tsa.data.sb5b.tweets.read():
+        if tweet['Label'] in label_groups:
+            label_groups[tweet['Label']].append(tweet)
+            # if we have at least `minimum` in each class, we're done.
+            if all(len(label_group) >= per_label for label_group in label_groups.values()):
+                break
+    return [tweet for label_group in label_groups.values() for tweet in label_group[:per_label]]
+
+
 def tweets_scikit():
-    @pickleable('read_tweets-min=%(minimum)d.pickle')
-    def read_tweets(labels=None, minimum=2500):
-        label_groups = dict((label, []) for label in labels)
-        for tweet in sb5b_tweets.read_cached():
-            if tweet['Label'] in label_groups:
-                label_groups[tweet['Label']].append(tweet)
-
-                # if we have at least `minimum` in each class, we're done.
-                if all(len(label_group) >= minimum for label_group in label_groups.values()):
-                    break
-
-        # ensure a For/Against 50/50 split with [:minimum] slice
-        #   the different classes will be in order, by the way
-        return [tweet for label_group in label_groups.values() for tweet in label_group[:minimum]]
-
-    labels = ['Against', 'For']
-    label_ids = dict((label, index) for index, label in enumerate(labels))
-    tweets = read_tweets(labels=labels, minimum=2500)
-
-    print 'Done reading tweets'
+    label_names = ['Against', 'For']
+    label_ids = dict((label, index) for index, label in enumerate(label_names))
 
     # tweets_sorted = sorted(tweets, key=label_item_value)
     # for label, tweets in itertools.groupby(tweets_sorted, label_item_value):
@@ -110,46 +117,101 @@ def tweets_scikit():
     # Neutral 149
     # Not Applicable 571
 
-    N = len(tweets)
-    K_folds = 10
+    # read_tweets is cached
+    data = [(tweet['Label'], tweet['Tweet']) for tweet in read_tweets(labels=label_names, per_label=2500)]
+    labels, documents = zip(*data)
+    logger.debug('Done reading tweets')
 
-    # calculate labels, y
-    corpus_labels = [tweet['Label'] for tweet in tweets]
-    y = np.array([label_ids[corpus_label] for corpus_label in corpus_labels])
+    # resolve named labels to integers
+    y = np.array([label_ids[label] for label in labels])
 
-    # calculate data, X
-    corpus_strings = [tweet['Tweet'] for tweet in tweets]
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 2),
-        token_pattern=ur'\b\S+\b')
-    corpus_count_vectors = count_vectorizer.fit_transform(corpus_strings)
-    # liwc analysis:
-    corpus_categories = [liwc.text_categories(document) for document in corpus_strings]
+    # ngram features
+    count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 2), token_pattern=ur'\b\S+\b')
+    corpus_count_vectors = count_vectorizer.fit_transform(documents)
+    # some models require dense arrays (count_vectorizer.transform gives sparse output normally)
+    X = corpus_count_vectors.toarray()
+    # get the BOW vocabulary
+    dimension_names = np.array(count_vectorizer.get_feature_names())
+
+    # liwc features
+    liwc = Liwc()
+    corpus_categories = [liwc.read_document(document) for document in documents]
+    # the identity analyzer means that each document is a list (or generator) of relevant tokens already
     category_vectorizer = CountVectorizer(analyzer=lambda x: x)
     corpus_category_vectors = category_vectorizer.fit_transform(corpus_categories)
-    # get the BOW vocabulary
+    logger.info('Not using liwc features')
+    # X = np.hstack((X, corpus_category_vectors.toarray()))
+    # prepend the liwc categories with a percent sign
+    # liwc_names = ['%' + category for category in category_vectorizer.get_feature_names()]
+    # dimension_names = np.hstack((dimension_names, liwc_names))
 
     # TF-IDF was actually performing worse, last time I compared to normal counts.
     # tfidf_transformer = TfidfTransformer()
     # corpus_tfidf_vectors = tfidf_transformer.fit_transform(corpus_count_vectors)
 
-    # some models require dense arrays (count_vectorizer.transform gives sparse output normally)
-    X = np.hstack((corpus_count_vectors.toarray(), corpus_category_vectors.toarray()))
-    # X = scipy.sparse.hstack((corpus_count_vectors, corpus_category_vectors)).toarray()
-    print 'X.shape', X.shape
-
-    dimension_names = np.array(
-        count_vectorizer.get_feature_names() +
-        # prepend the liwc categories with a percent sign
-        ['%' + category for category in category_vectorizer.get_feature_names()])
-    # categories = np.array(count_vectorizer.get_feature_names())
-
+    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
     # k_means = cluster.KMeans(n_clusters=2)
     # k_means.fit(X)
 
-    for k, (train_indices, test_indices) in enumerate(cross_validation.KFold(N, K_folds, shuffle=True)):
+    # def tabulate_edges(ordering, edgeitems, *data):
+    #     # matrix is a (N,) of floats
+    #     # data is a list of (N,) columns of other output values to accompany the extreme coefficients
+    #     # example call:
+    #     #   tabulate_edges(model.coef_.ravel(), zip(*(dimension_names, sums)))
+    #     # np.sort sorts ascending -- from most negative to most positive
+    #     indices = np.argsort(ordering)
+    #     edge_indices = np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
+    #     for coefficient, row in zip(*(ordering[edge_indices], data[edge_indices, :])):
+    #         # print 'row', row.shape, list(row), [item for item in row]
+    #         print ','.join([str(coefficient)] + list(row))
+    #         yield coefficient,
+    # ravel just reduces the 1-by-M matrix to a M-vector
+    # print 'tabulating edges:'
+    # dimension_sums is the total number of each token that occurs in the corpus
+    # (btw: dimensions == columns)
+    # dimension_sums = X.sum(axis=0)
+    # Note: np.column_stack(...) == np.vstack(...).T
+    # summarized_data = np.column_stack((dimension_names, dimension_sums))
+    # tabulate_edges(model.coef_.ravel(), 25, dimension_names, dimension_sums)
+    # model_coefficients = model.coef_.ravel()
+    # indices = np.argsort(model_coefficients)
+    # edge_indices = np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
+
+    # model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+    # model.fit(X, y)
+    # model_df = pd.DataFrame({
+    #     # ravel flattens, but doesn't copy
+    #     'coef': model.coef_.ravel(),
+    #     'label': dimension_names,
+    #     'count': X.sum(axis=0),
+    # })
+
+    # edges = model_df.sort('coef').iloc[margins(30)]
+    # print 'edges.coef', repr(edges.coef)
+    # x_ticks = np.arange(edges.coef.min(), edges.coef.max(), dtype=int)
+    # print gg.ggplot(gg.aes(x='coef', y='count'), data=edges) + \
+    #     gg.geom_bar(stat='identity', width=0.1) + \
+    #     gg.scale_x_continuous('Coefficients', labels=list(x_ticks), breaks=list(x_ticks))
+
+    # gg.geom_point(weight='coef')
+    # print edges.describe()
+
+    # IPython.embed()
+
+    # loop over the n_folds
+    n_folds = 10
+    for k, (train_indices, test_indices) in enumerate(cross_validation.KFold(y.size, n_folds, shuffle=True)):
         # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20, random_state=42)
-        train_X, test_X = X[train_indices], X[test_indices]
-        train_y, test_y = y[train_indices], y[test_indices]
+        test_X, test_y = X[test_indices], y[test_indices]
+        train_X = X[train_indices]
+        train_y = y[train_indices]
+
+        proportions = [0.01, 0.05, 0.1, 0.25, 0.5, 0.75, 1.0]
+        for proportion in proportions:
+            np.random.choice(
+
+
+
 
         logger.info('k=%d; %d train, %d test.', k, len(train_indices), len(test_indices))
 
@@ -159,27 +221,27 @@ def tweets_scikit():
         # other nice ML variable selection help:
         #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
         #   http://www.quora.com/What-are-some-feature-selection-methods
-        # train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
-        # train_classif_F, train_classif_pval = f_classif(train_X, train_y)
-        train_F, train_pval = f_regression(train_X, train_y)
+        ## train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
+        ## train_classif_F, train_classif_pval = f_classif(train_X, train_y)
+        # train_F, train_pval = f_regression(train_X, train_y)
         # train_pval.shape = (4729,)
-        ranked_dimensions = np.argsort(train_pval)
-        ranked_names = dimension_names[np.argsort(train_pval)]
-        top_k = 100
+        # ranked_dimensions = np.argsort(train_pval)
+        # ranked_names = dimension_names[np.argsort(train_pval)]
+        # top_k = 100
 
-        # train_X.shape: (4500, 18884) -> (4500, 100)
-        train_X = train_X[:, ranked_dimensions[:top_k]]
-        # train_X.shape: (500, 18884) -> (500, 100)
-        test_X = test_X[:, ranked_dimensions[:top_k]]
-
-        IPython.embed()
+        # train_X.shape shrinkage:: (4500, 18884) -> (4500, 100)
+        # train_X = train_X[:, ranked_dimensions[:top_k]]
+        # train_X.shape shrinkage: (500, 18884) -> (500, 100)
+        # test_X = test_X[:, ranked_dimensions[:top_k]]
 
         # train_X, test_X = X[train_indices], X[test_indices]
         # train_y, test_y = y[train_indices], y[test_indices]
 
         # train and predict
-        model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
-        # model = linear_model.LogisticRegression(penalty='l1')
+        model = linear_model.LogisticRegression(penalty='l1')
+        # model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
+        # nice L1 vs. L2 norm tutorial: http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
+        # model = linear_model.SGDClassifier(loss='log', penalty='elasticnet')
         # model = linear_model.LinearRegression(normalize=True)
         # model = svm.LinearSVC(penalty='l2', dual=False, C=2.0)
         # model = svm.SVC(probability=True)
@@ -188,92 +250,42 @@ def tweets_scikit():
         #     max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
         #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
         #     min_density=None, compute_importances=None)
-        # model = linear_model.SGDClassifier(loss='log')
         # model = naive_bayes.MultinomialNB()
-        # neighbors.KNeighborsClassifier(3)
+        # model = neighbors.KNeighborsClassifier(10)
         # linear_model.LogisticRegression()
         model.fit(train_X, train_y)
-        logger.info('Model.classes_: %s', ', '.join(labels[class_] for class_ in model.classes_))
+        logger.info('Model.classes_: %s', ', '.join(label_names[class_] for class_ in model.classes_))
 
-        # classif_selector = SelectKBest(f_classif, k=100)
-        # classif_selector.fit(train_X, train_y)
-        # print 'classif_selector', classif_selector
-
-        # regression_selector = SelectKBest(f_regression, k=100)
-        # regression_selector.fit(train_X, train_y)
-        # print 'regression_selector', regression_selector
-
+        # print ranked_names[np.argsort(model.coef_)]
         # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
         # print 'train_F_hmean', train_F_hmean
         # neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
         # print '-train_pval_hmean', neg_train_pval_hmean
 
-        # regression_selector = SelectKBest(f_regression, k=100)
-        # print 'regression_selector', regression_selector
-        # top_k_corpus_types = dimension_names[regression_selector.get_support()]
-        # print 'coef_', model.coef_
         # coef_sort = np.argsort(model.coef_)
         # print corpus_types[np.argsort(model.coef_)]
+        print 'coef_', model.coef_
+        # the mean of a list of booleans returns the percentage of trues
+        sparsity = np.mean(model.coef_.ravel() == 0)
+        print 'sparsity', sparsity
 
         # predict using the model just trained
-        # pred_y = model.predict(test_X)
-
-        pred_certainty = np.repeat(np.nan, test_y.shape)
-        print 'pred_certainty.shape', pred_certainty.shape
-        if hasattr(model, 'predict_proba'):
-            pred_probabilities = model.predict_proba(test_X)
-            # predicts_proba returns N rows, each C-long, where C is the number of labels
-            # with this, we can use np.array.argmax to get the class names we would have gotten with model.predict()
-            # axis=0 will give us the max for each column (not very useful)
-            # axis=1 will give us the max for each row (what we want)
-            # find best guess (same as model.predict(...), I think)
-            pred_y = pred_probabilities.argmax(axis=1)
-            # pred_certainty now ranges between 0 and 1,
-            #   a pred_certainty of 1 means the prediction probabilities were extreme,
-            #                       0 means they were near 0.5 each
-            # hmean takes the harmonic mean of its arguments
-            if (pred_probabilities > 0).all():
-                pred_certainty = 1 - 2 * scipy.stats.hmean(pred_probabilities, axis=1)
-        else:
-            logger.info('predict_proba is unavailable for this model: %s', model)
-            pred_y = model.predict(test_X)
-
-        # if k == 9:
-        #     print '!!! randomizing predictions'
-        #     pred_y = [random.choice((0, 1)) for _ in pred_y]
-        # logger.info('Mispredictions')
-
-        certainties = defaultdict(list)
-        for test_i, (gold, pred, certainty) in enumerate(zip(test_y, pred_y, pred_certainty)):
-            correct = gold == pred
-            correct_name = 'Correct' if correct else 'Incorrect'
-
-            certainties[correct_name].append(certainty)
-
-            if not correct:
-                y_i = test_indices[test_i]
-                print 'test %d => y %d' % (test_i, y_i)
-                print 'gold (%s=%s) != pred (%s=%s)' % (gold, labels[gold], pred, labels[pred])
-                print 'certainty: %0.4f' % certainty
-                print 'Document#%d: [%s] %s' % (y_i, corpus_labels[y_i], corpus_strings[y_i])
-                print
-                # print 'vec', corpus_count_vectors[y_i]
-
-        if np.isnan(pred_certainty).any():
-            print 'certainty is unavailable'
-        else:
-            print '*: certainty mean=%0.5f' % np.mean(pred_certainty)
-            histogram.hist(pred_certainty, range=(0, 1))
-            for certainty_name, certainty_values in certainties.items():
-                print '%s: certainty mean=%0.5f' % (certainty_name, np.mean(certainty_values))
-                histogram.hist(certainty_values, range=(0, 1))
-
-        # evaluate
+        pred_y = model.predict(test_X)
         print 'Accuracy: %0.5f, F1: %0.5f' % (
             metrics.accuracy_score(test_y, pred_y),
             metrics.f1_score(test_y, pred_y))
         # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
-        print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=labels)
+        print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=label_names)
+
+        logger.info('explore_mispredictions')
+        explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
+        logger.info('explore_uncertainty')
+        explore_uncertainty(test_X, test_y, model)
+
+        # if k == 9:
+        #     print '!!! randomizing predictions'
+        #     pred_y = [random.choice((0, 1)) for _ in pred_y]
 
 
-tweets_scikit()
+if __name__ == '__main__':
+    tweets_scikit()
