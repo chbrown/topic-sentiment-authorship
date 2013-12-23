@@ -26,7 +26,16 @@ def hmean(xs):
 
 
 def metrics_summary(y_true, y_pred):
-    results = dict(
+    return ', '.join([
+        'accuracy: {accuracy:.2%}',
+        'P/R: {precision:.4f}/{recall:.4f}',
+        'F1: {f1:.4f}',
+        # '0-1 loss: {zero_one_loss:.4f}',
+    ]).format(**metrics_dict(y_true, y_pred))
+
+
+def metrics_dict(y_true, y_pred):
+    return dict(
         accuracy=metrics.accuracy_score(y_true, y_pred),
         precision=metrics.precision_score(y_true, y_pred),
         recall=metrics.recall_score(y_true, y_pred),
@@ -38,12 +47,6 @@ def metrics_summary(y_true, y_pred):
         # zero_one_loss is (1.0 - accuracy) in multi-label scenarios
         # zero_one_loss=metrics.zero_one_loss(y_true, y_pred),
     )
-    return ', '.join([
-        'accuracy: {accuracy:.2%}',
-        'P/R: {precision:.4f}/{recall:.4f}',
-        'F1: {f1:.4f}',
-        # '0-1 loss: {zero_one_loss:.4f}',
-    ]).format(**results)
 
 
 def explore_mispredictions(test_X, test_y, model, test_indices, label_names, documents):
