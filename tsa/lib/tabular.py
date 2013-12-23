@@ -1,3 +1,4 @@
+import sys
 import csv
 import openpyxl
 
@@ -33,3 +34,18 @@ def read_tsv(filepath, limit=None):
             if i == limit:
                 break
             yield row
+
+
+class Printer(object):
+    def __init__(self, headers=[], output=sys.stdout, separator='\t'):
+        self.headers = headers
+        self.output = output
+        self.separator = separator
+
+    def write(self, dict_):
+        new_headers = set(dict_.keys()) - set(self.headers)
+        if len(new_headers) > 0:
+            self.headers.extend(new_headers)
+            # ^^^ signifies an updated headers row
+            print >> self.output, '^^^', self.separator.join(map(unicode, self.headers))
+        print >> self.output, self.separator.join(unicode(dict_.get(key, '')) for key in self.headers)
