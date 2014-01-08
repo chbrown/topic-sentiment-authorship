@@ -3,28 +3,29 @@ import time
 from datetime import datetime, timedelta
 
 from tsa import logging
-from viz import terminal
+from viz import terminal, format
+from viz.geom import hist
 
 # logging.basicConfig(format='%(levelname)-8s %(asctime)14s (%(name)s): %(message)s', level=17)
 # logging.WARNING = 30
 logging.captureWarnings(True)
 logger = logging.getLogger(__name__)
-logger.level = 1
+logger.level = 10  # SILLY < 10 <= DEBUG
 # logger.critical('logger init: root.level = %s, logger.level = %s', logging.root.level, logger.level)
 
 import numpy as np
 np.set_printoptions(edgeitems=25, threshold=100, linewidth=terminal.width())
+import scipy
 from scipy import sparse
-# import scipy
 import pandas as pd
 pd.options.display.max_rows = 200
 pd.options.display.max_columns = 10
 pd.options.display.width = terminal.width()
 
-from viz.geom import hist
 
 from lexicons import Liwc
 
+from collections import Counter
 from sklearn import cross_validation, metrics
 from sklearn import linear_model
 from sklearn import naive_bayes
@@ -39,7 +40,7 @@ from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
 # from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
-logger.debug('loaded sklearn')
+logger.silly('loaded sklearn')
 
 from tsa.lib import cache, tabular
 from tsa.lib.itertools import take, Quota, item_zero
@@ -187,20 +188,21 @@ class ClassificationCorpus(object):
 
     @classmethod
     def sb5_equal(cls, label_names=['Against', 'For'], per_label=2500):
-        corpus = cls()
-        corpus.set_label_names(label_names)
-
         @cache.decorate('/tmp/tsa-corpora-sb5-tweets-min={per_label}.pickle')
-        def read(label_names=label_names, per_label=per_label):
+        def cached_read(label_names=label_names, per_label=per_label):
             label_counts = dict.fromkeys(label_names, per_label)
             quota = Quota(**label_counts)
             from tsa.data.sb5b.tweets import read
             tweets = quota.filter(read(), keyfunc=lambda tweet: tweet['Label'])
             # the sort is not really necessary, I think
+            # but sorted always returns a list
             return sorted(tweets, key=lambda tweet: tweet['TweetTime'])
 
+        corpus = cls()
+        corpus.set_label_names(label_names)
+
         # read is cached, returns a list (not an iterator)
-        tweets = read(label_names=['Against', 'For'], per_label=2500)
+        tweets = cached_read(label_names=label_names, per_label=per_label)
 
         # resolve named labels to integers
         corpus.y = np.array([corpus.label_ids[tweet['Label']] for tweet in tweets])
@@ -208,16 +210,16 @@ class ClassificationCorpus(object):
 
         documents = [tweet['Tweet'] for tweet in tweets]
 
-        logger.info('Adding ngram features')
+        logger.debug('Adding ngram features')
         corpus.add_ngram_features(documents)
 
-        logger.info('Not adding liwc features')
+        logger.silly('Not adding liwc features')
         # corpus.add_liwc_features(documents)
 
         # look into caching with np.load and/or stdlib's pickle
         # http://docs.scipy.org/doc/numpy/reference/generated/numpy.load.html
 
-        logger.debug('ClassificationCorpus.sb5_equal() done')
+        logger.debug('ClassificationCorpus.sb5_equal: read %d tweets', len(documents))
         return corpus
 
     @classmethod
@@ -249,9 +251,19 @@ class ClassificationCorpus(object):
         return corpus
 
 
-def np_table(xs, names=None):
-    counts = np.bincount(xs)
-    # list(enumerate(np.bincount(xs)))
+def np_table(ys, names=None):
+    '''
+    np_table(...) tabulates a list of item-count pairs, e.g.:
+       [('For', 19118), ('NA', 0), ('Broken Link', 0), ('Against', 87584)]
+
+    ys is generally a list of 0-indexed labels.
+    names is generally a list of strings
+
+    >>> np_table([0, 1, 0, 1, 2, 0], names=['a', 'b', 'c'])
+    [('a', 3), ('b', 2), ('c', 1)]
+    '''
+    counts = np.bincount(ys)
+    # list(enumerate(np.bincount(ys)))
     if names is None:
         names = range(len(counts))
     return zip(names, counts)
@@ -304,7 +316,135 @@ def datespace(minimum, maximum, num, unit):
     return np.arange(start, end + delta, delta).astype(minimum.dtype)
 
 
-def main():
+def bootstrap():
+    corpus = ClassificationCorpus.sb5_equal()
+    X, y, label_names, label_ids, dimension_names = corpus
+    # make X sliceable
+    X = X.tocsr()
+
+    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
+    # -> X.shape: (5000, 2009), y.shape: (5000,)
+
+    # def bootstrap_coefs(folds):
+    # presumably, specifying "count" speeds things up
+    # coefs = np.fromiter(bootstrap_coefs(folds), count=K)
+
+    # hstack: Stack arrays in sequence horizontally (column wise).
+    # vstack: Stack arrays in sequence vertically (row wise).
+
+    K = 100
+    # X.shape[1] == len(dimension_names)
+    # coefs = np.empty((K, X.shape[1]))
+    # each row in coefs represents the results from a single bootstrap run
+    coefs = np.zeros((K, X.shape[1]))
+
+    bootstrap_folds = cross_validation.Bootstrap(y.size, n_iter=K, train_size=0.5, test_size=0.5)
+
+    def full_sample_fold_generator():
+        # for fold in cross_validation.Bootstrap(y.size, n_iter=K, train_size=1, test_size=0):
+        for k in range(K):
+            yield np.random.choice(y.size, size=y.size, replace=True), []
+
+    folds = bootstrap_folds
+    # folds = full_sample_fold_generator()
+
+    for fold, (train_indices, test_indices) in enumerate(folds):
+        logger.silly('Fold %d/%d', fold + 1, K)
+        train_indices_counter = Counter(train_indices)
+        repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
+        # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
+        model = linear_model.LogisticRegression(penalty='l2')
+        model.fit(X[train_indices, :], y[train_indices])
+        # from the docs: If the number of objects in the selection tuple is less than N , then : is assumed for any subsequent dimensions
+        # i.e., coefs[fold, :] == coefs[fold, ]
+        coefs[fold, :] = model.coef_.ravel()
+
+    '''Numpy axes:
+
+    >>> grades_by_age = np.array([
+        [98, 14],
+        [92, 15],
+        [87, 13],
+        [93, 14]])
+    >>> grades_by_age.mean(axis=0)
+    array([ 92.5,  14. ])
+    >>> grades_by_age.mean(axis=1)
+    array([ 56. ,  53.5,  50. ,  53.5])
+
+    When our rows are observations, usually axis=0 is the only thing that makes sense.
+    This is because each cell has much more in common with the rest of the column than the rest of the row.
+
+    axis=0: apply function to each column in turn
+    axis=1: apply function to each row in turn
+
+    This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
+    '''
+
+    qmargins = [0, 5, 10, 50, 90, 95, 100]
+
+    print 'coefs_means'
+    coefs_means = np.mean(coefs, axis=0)
+    hist(coefs_means)
+    format.quantiles(coefs_means, qs=qmargins)
+
+    print 'coefs_std_deviations'
+    coefs_std_deviations = np.std(coefs, axis=0)
+    hist(coefs_std_deviations)
+    format.quantiles(coefs_std_deviations, qs=qmargins)
+
+    print 'coefs_variances'
+    coefs_variances = np.var(coefs, axis=0)
+    hist(coefs_variances)
+    format.quantiles(coefs_variances, qs=qmargins)
+
+    # hist(np.log(coefs_variances))
+
+    IPython.embed(); raise SystemExit(111)
+
+    explore_coefs(coefs)
+
+
+def explore_coefs(coefs):
+    # sample_cov = np.cov(coefs) # is this anything?
+    coefs_cov = np.cov(coefs, rowvar=0)
+    plt.imshow(coefs_cov)
+    # w, v = np.linalg.eig(coefs_cov)
+    u, s, v = np.linalg.svd(coefs_cov)
+
+    # reorder least-to-biggest
+    rowsums = np.sum(coefs_cov, axis=0)
+    colsums = np.sum(coefs_cov, axis=1)
+    # rowsums == colsums, obviously
+    ordering = np.argsort(rowsums)
+    coefs_cov_reordered = coefs_cov[ordering, :][:, ordering]
+    # coefs_cov_2 = coefs_cov[:, :]
+    log_coefs_cov_reordered = np.log(coefs_cov_reordered)
+    plt.imshow(log_coefs_cov_reordered)
+    plt.imshow(log_coefs_cov_reordered[0:500, 0:500])
+
+    coefs_corrcoef = np.corrcoef(coefs, rowvar=0)
+
+    ordering = np.argsort(np.sum(coefs_corrcoef, axis=0))
+    coefs_corrcoef_reordered = coefs_corrcoef[ordering, :][:, ordering]
+    # plt.imshow(coefs_corrcoef_reordered)
+
+    # dimension_names[ordering]
+    # from scipy.cluster.hierarchy import linkage, dendrogram
+    # Y = scipy.spatial.distance.pdist(X, 'correlation')  # not 'seuclidean'
+    Z = linkage(X, 'single', 'correlation')
+    dendrogram(Z, color_threshold=0)
+
+    # sklearn.cluster.Ward
+
+    # KFold(y.size, 10, shuffle=True)
+    # cross_validation.Bootstrap(n, n_iter=3, train_size=0.5, test_size=None)
+    # bootstrap samples with replacement
+
+
+
+main = bootstrap
+
+def label_proportions():
     corpus = ClassificationCorpus.sb5_all()
     X, y, label_names, label_ids, dimension_names = corpus
 
@@ -313,7 +453,6 @@ def main():
     # the COO sparse matrix format (which is what X will probably be in) is not sliceable
     # but the CSR format is, and it's still sparse and very to quick to convert from COO
     X = X.tocsr()
-    # printer = tabular.Printer()
 
     # folds = cross_validation.KFold(y.size, 10, shuffle=True)
     # for fold_index, (train_indices, test_indices) in enumerate(folds):
@@ -353,8 +492,6 @@ def main():
         print 'predictions on everything:', np_table(all_pred, label_names)
         print '  against / total:', (all_pred == label_ids['Against']).mean()
 
-    # np_table(...) produces something like this:
-    #   [('For', 19118), ('NA', 0), ('Broken Link', 0), ('Against', 87584)]
 
     # y.size = train_mask.size = 106703
 
@@ -363,8 +500,6 @@ def main():
 
     # np.empty(y.size)
 
-    # print '\n\n'
-    # IPython.embed(); raise SystemExit(44)
 
     train_indices, train_mask = all_labels_indices, all_labels_mask
     # fig.autofmt_xdate()

@@ -10,6 +10,31 @@ import logging
 logging.basicConfig(format=logging_formats['interactive'], level=logging.INFO)
 
 
+# NOTSET = 0, DEBUG = 10
+SILLY = 5
+logging.addLevelName(SILLY, 'SILLY')
+
+
+class Logger(logging.Logger):
+    '''
+    Mostly from Tweedr
+    '''
+    def silly(self, msg, *args, **kwargs):
+        if self.isEnabledFor(SILLY):
+            self._log(SILLY, msg, args, **kwargs)
+
+    def notset(self, msg, *args, **kwargs):
+        if self.isEnabledFor(logging.NOTSET):
+            self._log(logging.NOTSET, msg, args, **kwargs)
+
+    def __repr__(self):
+        return '<%s name=%s level=%d (effective=%d) parent=%s disabled=%d>' % (self.__class__.__name__,
+            self.name, self.level, self.getEffectiveLevel(), self.parent, self.disabled)
+
+
+logging.setLoggerClass(Logger)
+
+
 def stdout(bytes=''):
     sys.stdout.write(bytes)
     sys.stdout.flush()

@@ -27,14 +27,14 @@ def hit(filepath_format, func, *args, **kwargs):
     #     raise ValueError('Cannot cache a function with ....')
     filepath = FilepathFormatter().format(filepath_format, *args, **kwargs)
     if os.path.exists(filepath):
-        logger.info('Reading pickled object from file: %s', filepath)
+        logger.debug('CACHE HIT: reading pickled object from file: %s', filepath)
         pickle_fp = open(filepath, 'rb')
         result = cPickle.load(pickle_fp)
     else:
-        logger.info('Executing pickle-able function')
+        logger.info('CACHE MISS: executing live function')
         result = func(*args, **kwargs)
 
-        logger.info('Writing pickled object to file: %s', filepath)
+        logger.debug('writing pickled object to file: %s', filepath)
         pickle_fp = open(filepath, 'wb')
         cPickle.dump(result, pickle_fp)
     return result
