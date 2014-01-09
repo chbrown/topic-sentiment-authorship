@@ -9,15 +9,6 @@ logger.level = 1
 from sklearn import metrics
 
 
-def margins(margin):
-    # returns indices of the <margin> left and <margin> right elements of an array
-    # (n) -> [0, 1, ..., (n - 1), -n, -(n + 1), ..., -(n - 1)]
-    # so, map(string.lowercase.__getitem__, margins(3))  ->  ['a', 'b', 'c', 'x', 'y', 'z']
-    # or, alphabet_array = np.array(list(string.lowercase))
-    #     alphabet_array[margins(3)]  ->  np.array(['a', 'b', 'c', 'x', 'y', 'z'])
-    return range(0, margin) + range(-margin, 0)
-
-
 def hmean(xs):
     if (xs > 0.0).all():
         return scipy.stats.hmean(xs)

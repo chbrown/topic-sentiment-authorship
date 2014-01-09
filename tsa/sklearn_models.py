@@ -1,6 +1,8 @@
 import IPython
+import os
 import time
-from datetime import datetime, timedelta
+from datetime import datetime
+# from datetime import timedelta
 
 from tsa import logging
 from viz import terminal, format
@@ -15,7 +17,7 @@ logger.level = 10  # SILLY < 10 <= DEBUG
 
 import numpy as np
 np.set_printoptions(edgeitems=25, threshold=100, linewidth=terminal.width())
-import scipy
+# import scipy
 from scipy import sparse
 import pandas as pd
 pd.options.display.max_rows = 200
@@ -26,7 +28,8 @@ pd.options.display.width = terminal.width()
 from lexicons import Liwc
 
 from collections import Counter
-from sklearn import cross_validation, metrics
+from sklearn import cross_validation
+# from sklearn import metrics
 from sklearn import linear_model
 from sklearn import naive_bayes
 from sklearn import neighbors
@@ -35,16 +38,17 @@ from sklearn import svm
 from sklearn import ensemble
 # from sklearn import cluster
 from sklearn import decomposition
-from sklearn import neural_network
+# from sklearn import neural_network
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
 # from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
 logger.silly('loaded sklearn')
 
-from tsa.lib import cache, tabular
-from tsa.lib.itertools import take, Quota, item_zero
-from tsa.scikit import explore_mispredictions, explore_uncertainty, margins, metrics_dict
+from tsa import numpy_ext as npx
+from tsa.lib import cache, tabular, itertools
+from tsa.scikit import metrics_dict
+# from tsa.scikit import explore_mispredictions, explore_uncertainty
 
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
@@ -55,6 +59,16 @@ plt.rcParams['axes.grid'] = True
 # plt.rcParams['ps.useafm'] = True
 # plt.rcParams['pdf.use14corefonts'] = True
 # plt.rcParams['text.usetex'] = True
+
+def fig_path(name, index=0):
+    dirpath = os.path.expanduser('~/Dropbox/ut/qp/figures-qp-2')
+    base, ext = os.path.splitext(name)
+    filename = base + ('-%02d' % index if index > 0 else '') + ext
+    filepath = os.path.join(dirpath, filename)
+    if os.path.exists(filepath):
+        return fig_path(name, index + 1)
+    logger.info('Using filepath: %r', filepath)
+    return filepath
 
 
 def clear():
@@ -157,14 +171,15 @@ class ClassificationCorpus(object):
         yield self.label_ids
         yield self.dimension_names
 
-    def add_ngram_features(self, documents):
+    def add_ngram_features(self, documents, min_df=10, max_df=0.99, ngram_max=2):
         '''
         ngram features
 
         documents should be a list/iterable of strings (not tokenized)
         '''
-        # min_df = 10: ignore terms that occur less often than in 10 different documents
-        count_vectorizer = CountVectorizer(min_df=10, max_df=0.99, ngram_range=(1, 2), token_pattern=ur'\b\S+\b')
+        # min_df = 10   : ignore terms that occur less often than in 10 different documents
+        # max_df =  0.99: ignore terms that occur in greater than 99% of document
+        count_vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, ngram_range=(1, ngram_max), token_pattern=ur'\b\S+\b')
         corpus_count_vectors = count_vectorizer.fit_transform(documents)
         # hstack doesn't work with sparse arrays, so make it dense
         #   also, some models require dense arrays -- and
@@ -173,7 +188,7 @@ class ClassificationCorpus(object):
         self.X = sparse.hstack([X for X in [self.X, corpus_count_vectors] if X.size > 0])
 
         # get the BOW vocabulary (and make it an np.array so we can index into it easily)
-        self.dimension_names = np.hstack((self.dimension_names, np.array(count_vectorizer.get_feature_names())))
+        self.dimension_names = np.concatenate((self.dimension_names, np.array(count_vectorizer.get_feature_names())))
 
     def add_liwc_features(self, documents):
         liwc = Liwc()
@@ -184,14 +199,14 @@ class ClassificationCorpus(object):
         corpus_liwc_category_vectors = liwc_category_vectorizer.fit_transform(corpus_liwc_categories)
 
         self.X = sparse.hstack([X for X in [self.X, corpus_liwc_category_vectors] if X.size > 0])
-        self.dimension_names = np.hstack((self.dimension_names, np.array(liwc_category_vectorizer.get_feature_names())))
+        self.dimension_names = np.concatenate((self.dimension_names, np.array(liwc_category_vectorizer.get_feature_names())))
 
     @classmethod
     def sb5_equal(cls, label_names=['Against', 'For'], per_label=2500):
         @cache.decorate('/tmp/tsa-corpora-sb5-tweets-min={per_label}.pickle')
         def cached_read(label_names=label_names, per_label=per_label):
             label_counts = dict.fromkeys(label_names, per_label)
-            quota = Quota(**label_counts)
+            quota = itertools.Quota(**label_counts)
             from tsa.data.sb5b.tweets import read
             tweets = quota.filter(read(), keyfunc=lambda tweet: tweet['Label'])
             # the sort is not really necessary, I think
@@ -211,7 +226,7 @@ class ClassificationCorpus(object):
         documents = [tweet['Tweet'] for tweet in tweets]
 
         logger.debug('Adding ngram features')
-        corpus.add_ngram_features(documents)
+        corpus.add_ngram_features(documents, min_df=5, max_df=0.95, ngram_max=2)
 
         logger.silly('Not adding liwc features')
         # corpus.add_liwc_features(documents)
@@ -251,31 +266,6 @@ class ClassificationCorpus(object):
         return corpus
 
 
-def np_table(ys, names=None):
-    '''
-    np_table(...) tabulates a list of item-count pairs, e.g.:
-       [('For', 19118), ('NA', 0), ('Broken Link', 0), ('Against', 87584)]
-
-    ys is generally a list of 0-indexed labels.
-    names is generally a list of strings
-
-    >>> np_table([0, 1, 0, 1, 2, 0], names=['a', 'b', 'c'])
-    [('a', 3), ('b', 2), ('c', 1)]
-    '''
-    counts = np.bincount(ys)
-    # list(enumerate(np.bincount(ys)))
-    if names is None:
-        names = range(len(counts))
-    return zip(names, counts)
-
-
-def np_datetime64(x):
-    try:
-        return np.datetime64(x)
-    except ValueError:
-        return np.datetime64()
-
-
 def datetime_to_yyyymmdd(x, *args, **kw):
     return x.strftime('%Y-%m-%d')
 
@@ -296,89 +286,67 @@ def mdate_formatter(num, pos=None):
     return datetime_to_yyyymmdd(mdates.num2date(num))
 
 
-def true_indices(bools):
-    # return np.arange(bools.size)[bools]
-    return np.where(bools)[0]
+'''Numpy axes:
 
+>>> grades_by_age = np.array([
+    [98, 14],
+    [92, 15],
+    [87, 13],
+    [93, 14]])
+>>> grades_by_age.mean(axis=0)
+array([ 92.5,  14. ])
+>>> grades_by_age.mean(axis=1)
+array([ 56. ,  53.5,  50. ,  53.5])
 
-def bool_mask(indices, n=None):
-    bools = np.zeros(n or indices.size, dtype=bool)
-    bools[indices] = True
-    return bools
+When our rows are observations, usually axis=0 is the only thing that makes sense.
+This is because each cell has much more in common with the rest of the column than the rest of the row.
 
+axis=0: apply function to each column in turn
+axis=1: apply function to each row in turn
 
-def datespace(minimum, maximum, num, unit):
-    # take the <unit>-floor of minimum
-    # span = (maximum - minimum).astype('datetime64[%s]' % unit)
-    delta = np.timedelta64(num, unit)
-    start = minimum.astype('datetime64[%s]' % unit)
-    end = maximum.astype('datetime64[%s]' % unit) + delta
-    return np.arange(start, end + delta, delta).astype(minimum.dtype)
+This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
+'''
 
 
 def bootstrap():
     corpus = ClassificationCorpus.sb5_equal()
     X, y, label_names, label_ids, dimension_names = corpus
-    # make X sliceable
+    # make X sliceable:
     X = X.tocsr()
 
-    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
+    logger.debug('bootstrap(): X.shape = %s, y.shape = %s', X.shape, y.shape)
     # -> X.shape: (5000, 2009), y.shape: (5000,)
 
-    # def bootstrap_coefs(folds):
     # presumably, specifying "count" speeds things up
     # coefs = np.fromiter(bootstrap_coefs(folds), count=K)
 
     # hstack: Stack arrays in sequence horizontally (column wise).
     # vstack: Stack arrays in sequence vertically (row wise).
 
-    K = 100
+    K = 2000
     # X.shape[1] == len(dimension_names)
     # coefs = np.empty((K, X.shape[1]))
     # each row in coefs represents the results from a single bootstrap run
     coefs = np.zeros((K, X.shape[1]))
 
-    bootstrap_folds = cross_validation.Bootstrap(y.size, n_iter=K, train_size=0.5, test_size=0.5)
+    # KFold(y.size, 10, shuffle=True)
+    # cross_validation.Bootstrap(n, n_iter=3, train_size=0.5, test_size=None)
+    # bootstrap samples with replacement
 
-    def full_sample_fold_generator():
-        # for fold in cross_validation.Bootstrap(y.size, n_iter=K, train_size=1, test_size=0):
-        for k in range(K):
-            yield np.random.choice(y.size, size=y.size, replace=True), []
+    # folds = cross_validation.Bootstrap(y.size, n_iter=K, train_size=0.9999)
+    folds = npx.bootstrap(y.size, n_iter=K, proportion=0.1)
 
-    folds = bootstrap_folds
-    # folds = full_sample_fold_generator()
-
-    for fold, (train_indices, test_indices) in enumerate(folds):
-        logger.silly('Fold %d/%d', fold + 1, K)
+    for fold, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+        # logger.silly('Fold %d/%d', fold + 1, K)
         train_indices_counter = Counter(train_indices)
-        repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
+        # repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
         model = linear_model.LogisticRegression(penalty='l2')
         model.fit(X[train_indices, :], y[train_indices])
-        # from the docs: If the number of objects in the selection tuple is less than N , then : is assumed for any subsequent dimensions
+        # from the docs: If the number of objects in the selection tuple is less than N ,
+        #   then : is assumed for any subsequent dimensions
         # i.e., coefs[fold, :] == coefs[fold, ]
         coefs[fold, :] = model.coef_.ravel()
-
-    '''Numpy axes:
-
-    >>> grades_by_age = np.array([
-        [98, 14],
-        [92, 15],
-        [87, 13],
-        [93, 14]])
-    >>> grades_by_age.mean(axis=0)
-    array([ 92.5,  14. ])
-    >>> grades_by_age.mean(axis=1)
-    array([ 56. ,  53.5,  50. ,  53.5])
-
-    When our rows are observations, usually axis=0 is the only thing that makes sense.
-    This is because each cell has much more in common with the rest of the column than the rest of the row.
-
-    axis=0: apply function to each column in turn
-    axis=1: apply function to each row in turn
-
-    This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
-    '''
 
     qmargins = [0, 5, 10, 50, 90, 95, 100]
 
@@ -397,11 +365,34 @@ def bootstrap():
     hist(coefs_variances)
     format.quantiles(coefs_variances, qs=qmargins)
 
-    # hist(np.log(coefs_variances))
+    cumulative_coefs_means = npx.mean_accumulate(coefs, axis=0)
+    cumulative_coefs_variances = npx.var_accumulate(coefs, axis=0)
+    # cumulative_coefs_variances.shape = (1000, 2009)
+
+    # find the dimensions of the least and most variance
+    ordering = coefs_variances.argsort()
+    indices = npx.edgeindices(25)
+    # indices = np.random.choice(ordering.size, 50)
+    subset = cumulative_coefs_variances[:, ordering[indices]]
+    # subset.shape = 40 columns, K=1000 rows
+    plt.plot(subset)
+    plt.title('Coefficient variances converging across a %d-iteration bootstrap\n(25 highest and 25 lowest variances)' % subset.shape[0])
+    plt.ylim(-0.05, 0.375)
+    plt.savefig(fig_path('cumulative-variances-%d-bootstrap.pdf' % subset.shape[0]))
+
+    plt.cla()
+    ordering = coefs_means.argsort()
+    middle = ordering.size // 2
+    indices = range(0, 25) + range(middle - 12, middle + 13) + range(-25, 0)
+    subset = cumulative_coefs_means[:, ordering[indices]]
+    plt.plot(subset)
+    plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])
+    plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
     IPython.embed(); raise SystemExit(111)
 
-    explore_coefs(coefs)
+
+main = bootstrap
 
 
 def explore_coefs(coefs):
@@ -413,7 +404,7 @@ def explore_coefs(coefs):
 
     # reorder least-to-biggest
     rowsums = np.sum(coefs_cov, axis=0)
-    colsums = np.sum(coefs_cov, axis=1)
+    # colsums = np.sum(coefs_cov, axis=1)
     # rowsums == colsums, obviously
     ordering = np.argsort(rowsums)
     coefs_cov_reordered = coefs_cov[ordering, :][:, ordering]
@@ -426,23 +417,15 @@ def explore_coefs(coefs):
 
     ordering = np.argsort(np.sum(coefs_corrcoef, axis=0))
     coefs_corrcoef_reordered = coefs_corrcoef[ordering, :][:, ordering]
-    # plt.imshow(coefs_corrcoef_reordered)
+    plt.imshow(coefs_corrcoef_reordered)
 
     # dimension_names[ordering]
-    # from scipy.cluster.hierarchy import linkage, dendrogram
+    from scipy.cluster.hierarchy import linkage, dendrogram
     # Y = scipy.spatial.distance.pdist(X, 'correlation')  # not 'seuclidean'
     Z = linkage(X, 'single', 'correlation')
     dendrogram(Z, color_threshold=0)
-
     # sklearn.cluster.Ward
 
-    # KFold(y.size, 10, shuffle=True)
-    # cross_validation.Bootstrap(n, n_iter=3, train_size=0.5, test_size=None)
-    # bootstrap samples with replacement
-
-
-
-main = bootstrap
 
 def label_proportions():
     corpus = ClassificationCorpus.sb5_all()
@@ -461,13 +444,13 @@ def label_proportions():
 
     # full training set
     all_labels_mask = (y == label_ids['Against']) | (y == label_ids['For'])
-    all_labels_indices = true_indices(all_labels_mask)
+    all_labels_indices = npx.bool_mask_to_indices(all_labels_mask)
 
     # balanced training set
     per_label = 2500
-    against_indices = true_indices(y == label_ids['Against'])
+    against_indices = npx.bool_mask_to_indices(y == label_ids['Against'])
     against_selection = np.random.choice(against_indices, per_label, replace=False)
-    for_indices = true_indices(y == label_ids['For'])
+    for_indices = npx.bool_mask_to_indices(y == label_ids['For'])
     for_selection = np.random.choice(for_indices, per_label, replace=False)
     balanced_labels_indices = np.concatenate((against_selection, for_selection))
     # balanced_labels_mask = bool_mask(balanced_labels_indices, y.size)
@@ -481,15 +464,15 @@ def label_proportions():
         # now predict using the model just trained
 
         balanced_labels_pred = model.predict(X[balanced_labels_indices, :])
-        print 'predictions on balanced-labels:', np_table(balanced_labels_pred, label_names)
+        print 'predictions on balanced-labels:', npx.table(balanced_labels_pred, label_names)
         print '  against / total:', (balanced_labels_pred == label_ids['Against']).mean()
 
         all_labels_pred = model.predict(X[all_labels_indices, :])
-        print 'predictions on all-labels:', np_table(all_labels_pred, label_names)
+        print 'predictions on all-labels:', npx.table(all_labels_pred, label_names)
         print '  against / total:', (all_labels_pred == label_ids['Against']).mean()
 
         all_pred = model.predict(X)
-        print 'predictions on everything:', np_table(all_pred, label_names)
+        print 'predictions on everything:', npx.table(all_pred, label_names)
         print '  against / total:', (all_pred == label_ids['Against']).mean()
 
 
@@ -504,13 +487,11 @@ def label_proportions():
     train_indices, train_mask = all_labels_indices, all_labels_mask
     # fig.autofmt_xdate()
 
-    # clear()
     # plt.hist(dtseconds[predictions == label_ids['Against']],
     #     bins=bins, alpha=0.75, color='blue')
     # plt.hist(dtseconds[predictions == label_ids['For']],
     #     bins=bins, alpha=0.75, color='red')
 
-    # clear()
     # plt.clf()
     # plt.cla()
     # plt.close()
@@ -530,7 +511,7 @@ def label_proportions():
     # bins = np.arange(np.min(dates), np.max(dates), dtype='datetime64[D]')
     # day_bins = np.arange(np.min(tweet_times), np.max(tweet_times), np.timedelta64(1, 'D'))
 
-    tweet_times_datetime64 = np.array([np_datetime64(tweet['TweetTime']) for tweet in corpus.tweets])
+    tweet_times_datetime64 = np.array([npx.datetime64(tweet['TweetTime']) for tweet in corpus.tweets])
     tweet_times = tweet_times_datetime64.astype(datetime)
 
     first, last = np.min(tweet_times_datetime64), np.max(tweet_times_datetime64)
@@ -604,6 +585,7 @@ def explore_texts(corpus):
     neither_texts = [text for text in texts if 'issue2' not in text and 'sb5' not in text]
 
     keywords = ['issue2', 'sb5', 'weareohio']
+
     def find(texts, keywords):
         for text in texts:
             if any(keyword in text for keyword in keywords):
@@ -615,9 +597,8 @@ def explore_texts(corpus):
                 yield text
 
     # print len(list(find(texts, ['issue2', 'sb5', 'weareohio'])))
-    for text in skip(texts, ['issue2', 'sb5', 'weareohio']):
+    for text in skip(texts, keywords):
         print text
-
 
     # any_texts = map(lambda text: any([(keyword in text) ]), texts)
      # [text for text in texts if ]
@@ -653,7 +634,6 @@ def tweets_scikit():
     #     #   tabulate_edges(model.coef_.ravel(), zip(*(dimension_names, sums)))
     #     # np.sort sorts ascending -- from most negative to most positive
     #     indices = np.argsort(ordering)
-    #     edge_indices = np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
     #     for coefficient, row in zip(*(ordering[edge_indices], data[edge_indices, :])):
     #         # print 'row', row.shape, list(row), [item for item in row]
     #         print ','.join([str(coefficient)] + list(row))
@@ -668,7 +648,6 @@ def tweets_scikit():
     # tabulate_edges(model.coef_.ravel(), 25, dimension_names, dimension_sums)
     # model_coefficients = model.coef_.ravel()
     # indices = np.argsort(model_coefficients)
-    # edge_indices = np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
 
     # model = linear_model.LogisticRegression(penalty='l2', dual=False, tol=0.0001, C=1.0)
     # model.fit(X, y)

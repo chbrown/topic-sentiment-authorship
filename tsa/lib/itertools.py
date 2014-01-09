@@ -1,3 +1,6 @@
+import signal
+
+
 # from operator import itemgetter
 # item_zero = itemgetter(0)
 # item_zero = lambda obj: obj.__getitem__[0]
@@ -52,3 +55,30 @@ class Quota(object):
             raise ValueError('Iterator stopped before quota was filled. Needed: %s' % self.needed_keys())
 
     # todo: add filter_with_key which would yield (key, item) pairs
+
+
+def sig_enumerate(iterable, start=0, logger=None):
+    '''
+    Just like the built-in enumerate(), but also respond to SIGINFO with a
+    line of output to the given / default logger.
+    '''
+    if logger is None:
+        from tsa import logging
+        logger = logging.getLogger('SIGINFO')
+
+    message = 'Iteration: -1'
+
+    def handler(signum, frame):
+        logger.info(message)
+
+    logger.debug('enumerating... type Ctrl-T to show current iteration')
+
+    signum = signal.SIGINFO
+    old_handler = signal.signal(signum, handler)
+    try:
+        for i, x in enumerate(iterable, start=start):
+            message = 'Iteration: %d' % i
+            yield i, x
+    finally:
+        # put the original signal back
+        signal.signal(signum, old_handler)
