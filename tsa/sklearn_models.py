@@ -417,6 +417,11 @@ def bootstrap():
     # train_pval.shape = (4729,)
     # ranked_dimensions = np.argsort(train_pval)
     # ranked_names = dimension_names[np.argsort(train_pval)]
+    plt.scatter(coefs_means, coefs_variances, alpha=0.2)
+    plt.title('Coefficient statistics after %d-iteration bootstrap' % K)
+    plt.xlabel('means')
+    plt.ylabel('variances')
+    plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
 
 
     IPython.embed(); raise SystemExit(111)
