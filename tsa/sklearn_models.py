@@ -42,7 +42,8 @@ from sklearn import decomposition
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
-# from sklearn.feature_selection import SelectPercentile, SelectKBest, chi2, f_classif, f_regression
+# from sklearn.feature_selection import SelectPercentile, SelectKBest
+from sklearn.feature_selection import chi2, f_classif, f_regression
 logger.silly('loaded sklearn')
 
 from tsa import numpy_ext as npx
@@ -226,7 +227,7 @@ class ClassificationCorpus(object):
         documents = [tweet['Tweet'] for tweet in tweets]
 
         logger.debug('Adding ngram features')
-        corpus.add_ngram_features(documents, min_df=5, max_df=0.95, ngram_max=2)
+        corpus.add_ngram_features(documents, min_df=5, max_df=0.95, ngram_max=1)
 
         logger.silly('Not adding liwc features')
         # corpus.add_liwc_features(documents)
@@ -369,9 +370,60 @@ def bootstrap():
     cumulative_coefs_variances = npx.var_accumulate(coefs, axis=0)
     # cumulative_coefs_variances.shape = (1000, 2009)
 
+    # Looking at the extremes
+    def sample_table(array, group_size=25):
+        ordering = array.argsort()
+        group_names = ['smallest', 'median', 'largest']
+        headers = [cell for group_name in group_names for cell in [group_name + '-v', group_name + '-k']]
+        groups_indices = [
+            npx.head_indices(array, group_size),
+            npx.median_indices(array, group_size),
+            npx.tail_indices(array, group_size)]
+        printer = tabular.Printer(headers=headers, FS=' & ', RS='\\\\\n')
+        printer.write_strings(printer.headers)
+        for row in range(group_size):
+            row_dict = dict()
+            for group_name, group_indices in zip(group_names, groups_indices):
+                indices = ordering[group_indices]
+                row_dict[group_name + '-k'] = dimension_names[indices][row]
+                row_dict[group_name + '-v'] = array[indices][row]
+            printer.write(row_dict)
+
+    print 'means'
+    sample_table(coefs_means, group_size=25)
+
+    # print '- means:'
+    # print 'head:',   dimension_names[means_ordering[npx.head_indices  (means_ordering, 25)]]
+    # print 'median:', dimension_names[means_ordering[npx.median_indices(means_ordering, 25)]]
+    # print 'tail:',   dimension_names[means_ordering[npx.tail_indices  (means_ordering, 25)]]
+
+    print 'stdevs'
+    sample_table(coefs_std_deviations, group_size=25)
+
+    # print '- vars:'
+    # print 'smallest:',   dimension_names[variances_ordering[npx.head_indices  (variances_ordering, 25)]]
+    # print 'averagest:',  dimension_names[variances_ordering[npx.median_indices(variances_ordering, 25)]]
+    # print 'largest:',    dimension_names[variances_ordering[npx.tail_indices  (variances_ordering, 25)]]
+
+    # dimension reduction
+    # f_regression help:
+    #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
+    # other nice ML variable selection help:
+    #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
+    #   http://www.quora.com/What-are-some-feature-selection-methods
+    ## train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
+    ## train_classif_F, train_classif_pval = f_classif(train_X, train_y)
+    # train_F, train_pval = f_regression(X[train_indices, :], y[train_indices])
+    # train_pval.shape = (4729,)
+    # ranked_dimensions = np.argsort(train_pval)
+    # ranked_names = dimension_names[np.argsort(train_pval)]
+
+
+    IPython.embed(); raise SystemExit(111)
+
+
     # find the dimensions of the least and most variance
-    ordering = coefs_variances.argsort()
-    indices = npx.edgeindices(25)
+    indices = npx.edge_indices(ordering, 25)
     # indices = np.random.choice(ordering.size, 50)
     subset = cumulative_coefs_variances[:, ordering[indices]]
     # subset.shape = 40 columns, K=1000 rows
@@ -383,13 +435,12 @@ def bootstrap():
     plt.cla()
     ordering = coefs_means.argsort()
     middle = ordering.size // 2
-    indices = range(0, 25) + range(middle - 12, middle + 13) + range(-25, 0)
+    indices = npx.edge_and_median_indices(0, 25) + range(middle - 12, middle + 13) + range(-25, 0)
     subset = cumulative_coefs_means[:, ordering[indices]]
     plt.plot(subset)
     plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])
     plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
-    IPython.embed(); raise SystemExit(111)
 
 
 main = bootstrap
@@ -760,20 +811,6 @@ def tweets_scikit():
         # print corpus_types[np.argsort(model.coef_)]
         # the mean of a list of booleans returns the percentage of trues
         # logger.info('Sparsity: {sparsity:.2%}'.format(sparsity=sparsity))
-
-        # dimension reduction
-        # f_regression help:
-        #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
-        # other nice ML variable selection help:
-        #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
-        #   http://www.quora.com/What-are-some-feature-selection-methods
-        ## train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
-        ## train_classif_F, train_classif_pval = f_classif(train_X, train_y)
-        # train_F, train_pval = f_regression(train_X, train_y)
-        # train_pval.shape = (4729,)
-        # ranked_dimensions = np.argsort(train_pval)
-        # ranked_names = dimension_names[np.argsort(train_pval)]
-        # top_k = 100
 
         # train_X.shape shrinkage:: (4500, 18884) -> (4500, 100)
         # train_X = train_X[:, ranked_dimensions[:top_k]]

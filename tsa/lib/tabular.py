@@ -37,15 +37,31 @@ def read_tsv(filepath, limit=None):
 
 
 class Printer(object):
-    def __init__(self, headers=[], output=sys.stdout, separator='\t'):
+    '''
+    As with Awk:
+        FS = field separator (defaults to tab)
+        RS = record separator (defaults to newline)
+    '''
+    def __init__(self, headers=[], output=sys.stdout, FS='\t', RS='\n'):
         self.headers = headers
         self.output = output
-        self.separator = separator
+        self.FS = FS
+        self.RS = RS
+
+    def formatter(self, value):
+        if isinstance(value, basestring):
+            return unicode(value)
+        else:
+            return '%0.3f' % value
+
+    def write_strings(self, values):
+        print >> self.output, self.FS.join([self.formatter(value) for value in values]), self.RS,
 
     def write(self, dict_):
         new_headers = set(dict_.keys()) - set(self.headers)
         if len(new_headers) > 0:
             self.headers.extend(new_headers)
-            # ^^^ signifies an updated headers row
-            print >> self.output, '^^^', self.separator.join(map(unicode, self.headers))
-        print >> self.output, self.separator.join(unicode(dict_.get(key, '')) for key in self.headers)
+            # ^^^ signals an updated headers row
+            print >> self.output, '^^^',
+            self.write_strings(self.headers)
+        self.write_strings(dict_.get(key, '') for key in self.headers)

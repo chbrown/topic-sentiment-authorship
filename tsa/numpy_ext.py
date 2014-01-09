@@ -15,18 +15,36 @@ def _type_raise(prototype_array, force_dtype=None):
     return prototype_array.dtype
 
 
-def edgeindices(edgeitems):
-    # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
-    # (n) -> [0, 1, ..., (n - 1), -n, -(n + 1), ..., -(n - 1)]
-    # so, map(string.lowercase.__getitem__, margins(3))  ->  ['a', 'b', 'c', 'x', 'y', 'z']
-    # or, alphabet_array = np.array(list(string.lowercase))
-    #     alphabet_array[margins(3)]  ->  np.array(['a', 'b', 'c', 'x', 'y', 'z'])
-    # np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
-    return range(0, edgeitems) + range(-edgeitems, 0)
+def head_indices(array, n):
+    return range(0, n)
+
+def tail_indices(array, n):
+    return range(array.size - n, array.size)
+
+def median_indices(array, n):
+    median = array.size // 2
+    half_n = n // 2
+    return range(median - half_n, median + half_n + 1)
+
+def edge_indices(array, n):
+    return head_indices(array, n) + tail_indices(array, n)
+
+def edge_and_median_indices(array, n):
+    return head_indices(array, n) + median_indices(array, n) + tail_indices(array, n)
 
 
-def edges(array, edgeitems):
-    return array[edgeindices(edgeitems)]
+# def edgeindices(edgeitems):
+#     # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
+#     # (n) -> [0, 1, ..., (n - 1), -n, -(n + 1), ..., -(n - 1)]
+#     # so, map(string.lowercase.__getitem__, margins(3))  ->  ['a', 'b', 'c', 'x', 'y', 'z']
+#     # or, alphabet_array = np.array(list(string.lowercase))
+#     #     alphabet_array[margins(3)]  ->  np.array(['a', 'b', 'c', 'x', 'y', 'z'])
+#     # np.concatenate((indices[:edgeitems], indices[-edgeitems:]))
+#     return range(0, edgeitems) + range(-edgeitems, 0)
+
+
+# def edges(array, edgeitems):
+#     return array[edgeindices(edgeitems)]
 
 
 def bootstrap(n, n_iter, proportion=1.0):
