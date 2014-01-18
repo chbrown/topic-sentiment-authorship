@@ -1,6 +1,7 @@
 import numpy as np
 import scipy
 from viz.geom import hist
+from viz import terminal, gloss
 import logging
 logger = logging.getLogger(__name__)
 logger.level = 1
@@ -75,3 +76,16 @@ def explore_uncertainty(test_X, test_y, model):
         hist(pred_certainty[pred_y != test_y], range=(0, 1))
     else:
         logger.info('predict_proba is unavailable for this model: %s', model)
+
+
+def explore_topics(topic_model, tokens_per_topic=10):
+    # not exactly scikit...
+    for topic_i in range(topic_model.num_topics):
+        topic = topic_model.show_topic(topic_i, topn=tokens_per_topic)
+        ratios, tokens = zip(*topic)
+        # terminal.width()
+        alignments = zip(tokens, ['%0.3f' % ratio for ratio in ratios])
+         # (%0.4f > ratio > %0.4f):' % (, ratios[0], ratios[-1])
+        # print ' ', ', '.join(tokens)
+        print 'Topic %d' % topic_i
+        print gloss.gloss(alignments, toksep='  ', prefixes=['  ', '  '])

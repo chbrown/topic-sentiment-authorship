@@ -22,5 +22,6 @@ class Base(object):
         for k, v in kw.items():
             setattr(self, k, v)
 
+
 from sqlalchemy.ext.declarative import declarative_base
 Model = declarative_base(metadata=metadata, cls=Base)

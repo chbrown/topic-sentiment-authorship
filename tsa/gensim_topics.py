@@ -1,24 +1,30 @@
+import IPython
 from itertools import islice
 from collections import defaultdict
+
 import gensim
 from gensim.utils import simple_preprocess  # as tokenize
-from tsa.data.sb5b import links
+from tsa.lib import cache, tabular, itertools
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-def links_gensim():
-    endpoints = links.read()
+@cache.decorate('/tmp/gensim_topics-read_links-limit={limit}.pickle')
+def read_links(limit=None):
+    import tsa.data.sb5b.links
+    endpoints = tsa.data.sb5b.links.read(limit=limit)
+    return [endpoint.__json__() for endpoint in endpoints]
 
-    # debug, sort of
-    endpoints = list(endpoints)
+
+def links_gensim():
+    endpoints = read_links(limit=10000)
 
     # the median length for the 6269 contentful endpoints currently in the database is 3217 characters
     maxlen = 10000
 
     # a list of strings
-    corpus_strings = (endpoint.content[:maxlen] for endpoint in endpoints)
+    corpus_strings = (endpoint['content'][:maxlen] for endpoint in endpoints)
 
     # a list of lists of strings. we need to make a dictionary and then encode these docs into bow,
     # so a generator is not possible
@@ -38,11 +44,24 @@ def links_gensim():
     # corpus_bow = [dictionary.doc2bow(doc) for doc in corpus_tokens]
     dictionary = gensim.corpora.Dictionary()
     corpus_bow = [dictionary.doc2bow(doc, allow_update=True) for doc in corpus_tokens]
+    '''
+    Gensim data structures:
+
+    corpus_bow is a list of documents
+    each document is a list of count-tuples: (vocabulary_id, count)
+
+    dictionary can be indexed by vocabulary_id to get the original word
+    e.g., dictionary[89] = 'allows'
+
+    corpus_tfidf is a functional structure.
+    '''
 
     # tf-idf transform
     # tfidf_model = gensim.models.TfidfModel(corpus_tokens)
     tfidf_model = gensim.models.TfidfModel(id2word=dictionary, dictionary=dictionary)
     corpus_tfidf = tfidf_model[corpus_bow]
+
+    IPython.embed(); raise SystemExit(101)
 
     # okay, corpus is ready
     num_topics = 5
@@ -89,7 +108,7 @@ def links_gensim():
     # look at only the first 10 endpoint.
     # yes, we're testing on our training data, but it's for a good cause.
     for endpoint in islice(endpoints, 10):
-        doc_tokens = simple_preprocess(endpoint.content)
+        doc_tokens = simple_preprocess(endpoint['content'])
         doc_bow = dictionary.doc2bow(doc_tokens)
         doc_tfidf = tfidf_model[doc_bow]
 
@@ -103,7 +122,7 @@ def links_gensim():
         print 'top', doc_topics_sorted[0]
         print 'all', doc_topics
         print
-        print endpoint.content
+        print endpoint['content']
 
 
 links_gensim()

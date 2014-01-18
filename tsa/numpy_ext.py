@@ -152,3 +152,17 @@ def var_accumulate(array, axis=0, dtype=None):
     squares_cumulative_means = mean_accumulate(squares, axis=axis, dtype=dtype)
 
     return squares_cumulative_means - cumulative_means_squares
+
+
+def tfidf(array):
+    # given a corpus of counts, compute tf-idf transform
+    ndocs, ndims = array.shape
+    # idf is a ndims-long vector
+    idf = float(ndocs) / np.apply_along_axis(np.count_nonzero, 0, array)
+    # if a term is rare, it will have a high idf
+    # if a term occurs in every document, it will have idf = 1 -> log_idf = 0
+    # if a term occurs in half the documents, it will have idf = 2 -> log_idf = .7
+    log_idf = np.log(idf)
+    # numpy is smart enough to multiple each row by the vector
+    # ... I think
+    return array * log_idf
