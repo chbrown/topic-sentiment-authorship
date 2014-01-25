@@ -80,11 +80,11 @@ def datespace(minimum, maximum, num, unit):
 
 def table(ys, names=None):
     '''
-    table(...) tabulates a list of item-count pairs, e.g.:
+    table(...) tabulates a flat list into item-count pairs, e.g.:
        [('For', 19118), ('NA', 0), ('Broken Link', 0), ('Against', 87584)]
 
     ys is generally a list of 0-indexed labels.
-    names is generally a list of strings
+    names is generally a list of strings, e.g., corpus.classes
 
     >>> np_table([0, 1, 0, 1, 2, 0], names=['a', 'b', 'c'])
     [('a', 3), ('b', 2), ('c', 1)]

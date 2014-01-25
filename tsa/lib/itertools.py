@@ -52,7 +52,9 @@ class Quota(object):
             if self.filled:
                 break
         else:
-            raise ValueError('Iterator stopped before quota was filled. Needed: %s' % self.needed_keys())
+            # raise ValueError('Iterator stopped before quota was filled. Needed: %s' % self.needed_keys)
+            # nevermind, don't raise an Error
+            pass
 
     # todo: add filter_with_key which would yield (key, item) pairs
 

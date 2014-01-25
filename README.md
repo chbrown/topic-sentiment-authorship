@@ -19,12 +19,35 @@ Tools built on computational linguistic concepts to accompany my research at the
 | Topic 8 | mississippi, biden, sexual, schuler, sep, weingarten, crackdown, charges, gears, midwest, pronounced, congratulated, setbacks, chicago, fertilized, reading, relating, changing, guilty, lgbt |
 | Topic 9 | frey, school, tax, you, teachers, schools, she, education, bowl, my, your, income, her, philadelphia, york, states, business, teacher, unemployment, ohio |
 
----
 
 ## Notes
 
 See `/usr/share/postgresql/tsearch_data/english.stop` for postgres' listing of stop words.
 
+
+### Numpy axes:
+
+**Aggregate functions**
+
+* `axis=0`: apply function to each column in turn
+* `axis=1`: apply function to each row in turn
+
+When our rows are observations, most aggregations use axis=0.
+This is because each cell has much more in common with the rest of the column than the rest of the row.
+
+    >>> grades_by_age = np.array([
+        [98, 14],
+        [92, 15],
+        [87, 13],
+        [93, 14]])
+    >>> grades_by_age.mean(axis=0)
+    array([ 92.5,  14. ])
+    >>> grades_by_age.mean(axis=1)
+    array([ 56. ,  53.5,  50. ,  53.5])
+
+This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
+
+
 ## License
 
-Copyright © 2012–2013 Christopher Brown. [MIT Licensed](LICENSE).
+Copyright © 2012–2014 Christopher Brown. [MIT Licensed](LICENSE).

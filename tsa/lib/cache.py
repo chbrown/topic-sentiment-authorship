@@ -27,16 +27,23 @@ def hit(filepath_format, func, *args, **kwargs):
     #     raise ValueError('Cannot cache a function with ....')
     filepath = FilepathFormatter().format(filepath_format, *args, **kwargs)
     if os.path.exists(filepath):
-        logger.debug('CACHE HIT: reading pickled object from file: %s', filepath)
+        logger.debug('CACHE HIT (reading pickled object from file: %s)', filepath)
         pickle_fp = open(filepath, 'rb')
         result = cPickle.load(pickle_fp)
+        logger.debug('CACHE DONE')
     else:
-        logger.info('CACHE MISS: executing live function')
+        logger.info('CACHE MISS (executing function)')
         result = func(*args, **kwargs)
 
-        logger.debug('writing pickled object to file: %s', filepath)
+        # ensure that result is pickleable: flatten iterators to lists
+        # TODO: be smarter about this?
+        # right now the only types of iterables we don't flatten to a list are lists and dicts
+        if hasattr(result, '__iter__') and not isinstance(result, list) and not isinstance(result, dict):
+            result = list(result)
+
         pickle_fp = open(filepath, 'wb')
         cPickle.dump(result, pickle_fp)
+        logger.debug('CACHE DONE (wrote pickled object to file: %s)', filepath)
     return result
 
 
@@ -44,7 +51,7 @@ def hit(filepath_format, func, *args, **kwargs):
 
 
 def wrap(func, filepath_format):
-    '''A function wrapper. If you previously called something like:
+    '''A function wrapper. If you call something like:
 
         get_tweets(hashtag='hcr', limit=1000):
         # does some I/O and returns a plain dict or list

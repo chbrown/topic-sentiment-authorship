@@ -25,7 +25,6 @@ pd.options.display.max_columns = 10
 pd.options.display.width = terminal.width()
 
 
-from lexicons import Liwc
 
 from collections import Counter
 from sklearn import cross_validation
@@ -39,14 +38,17 @@ from sklearn import ensemble
 # from sklearn import cluster
 from sklearn import decomposition
 # from sklearn import neural_network
-from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
+# from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
 # from sklearn.feature_selection import SelectPercentile, SelectKBest
 from sklearn.feature_selection import chi2, f_classif, f_regression
 logger.silly('loaded sklearn')
 
-from tsa import numpy_ext as npx
+import gensim
+
+from tsa import numpy_ext as npx, features
+from tsa.corpora import MulticlassCorpus
 from tsa.lib import cache, tabular, itertools
 from tsa.scikit import metrics_dict, explore_topics
 # from tsa.scikit import explore_mispredictions, explore_uncertainty
@@ -56,6 +58,8 @@ import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
 plt.rcParams['interactive'] = True
 plt.rcParams['axes.grid'] = True
+
+qmargins = [0, 5, 10, 50, 90, 95, 100]
 
 # plt.rcParams['ps.useafm'] = True
 # plt.rcParams['pdf.use14corefonts'] = True
@@ -80,191 +84,43 @@ def clear():
     plt.margins(0.025, tight=True)
 
 
-def links_scikit():
-    # index_range = range(len(dictionary.index2token))
-    # docmatrix = np.matrix([[bag_of_tfidf.get(index, 0) for index in index_range] for bag_of_tfidf in tfidf_documents])
-    # for i, bag_of_tfidf in enumerate(tfidf_documents):
-    #     index_scores = sorted(bag_of_tfidf.items(), key=lambda x: -x[1])
-    #     doc = ['%s=%0.4f' % (dictionary.index2token[index], score) for index, score in index_scores]
-    #     print i, '\t'.join(doc)
+def read_sb5b_MulticlassCorpus(limits=None, sort=True):
+    # @cache.decorate('/tmp/tsa-corpora-sb5-tweets-min={per_label}.pickle')
+    # look into caching with np.load and/or stdlib's pickle
+    # http://docs.scipy.org/doc/numpy/reference/generated/numpy.load.html
+    @cache.decorate('/tmp/tsa-corpora-sb5-tweets-all.pickle')
+    def cached_read():
+        # cached_read is cached, so it will return a list, not an iterator, even if it looks like a generator
+        import tsa.data.sb5b.tweets
+        for tweet in tsa.data.sb5b.tweets.read():
+            # hack: filter out invalid data here
+            if isinstance(tweet['TweetTime'], datetime):
+                yield tweet
+            else:
+                # there's just one invalid tweet -- with all null values
+                logger.debug('Ignoring invalid tweet: %r', tweet)
 
-    # U, s, V = np.linalg.svd(docmatrix, full_matrices=False)
-    # print docmatrix.shape, '->', U.shape, s.shape, V.shape
-    maxlen = 10000
+    tweets = cached_read()
 
-    import tsa.data.sb5b.links
-    endpoints = tsa.data.sb5b.links.read(limit=1000)
-    corpus_strings = (endpoint.content[:maxlen] for endpoint in endpoints)
+    # do label filtering AFTER caching
+    # if limits is set, it'll be something like: dict(Against=2500, For=2500)
+    # if you wanted to just select certain labels, you could use something like dict(Against=1e9, For=1e9)
+    if limits is not None:
+        quota = itertools.Quota(**limits)
+        tweets = list(quota.filter(tweets, keyfunc=lambda tweet: tweet['Label']))
 
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.95)
-    counts = count_vectorizer.fit_transform(corpus_strings)
-    # count_vectorizer.vocabulary_ is a dict from strings to ints
+    # FWIW, sorted always returns a list
+    if sort:
+        tweets = sorted(tweets, key=lambda tweet: tweet['TweetTime'])
 
-    tfidf_transformer = TfidfTransformer()
-    tfidf_counts = tfidf_transformer.fit_transform(counts)
-
-    # count_vectors_index_tokens is a list (map from ints to strings)
-    count_vectors_index_tokens = count_vectorizer.get_feature_names()
-
-    # eg., 1000 documents, 2118-long vocabulary (with brown from the top)
-    print count_vectors_index_tokens.shape
-
-    pca = decomposition.PCA(2)
-    doc_pca_data = pca.fit_transform(tfidf_counts.toarray())
-
-    print doc_pca_data
-
-    # target_vocab = ['man', 'men', 'woman', 'women', 'dog', 'cat', 'today', 'yesterday']
-    # for token_type_i, coords in enumerate(vocab_pca_data):
-    #     token = vector_tokens[token_type_i]
-    #     if token in target_vocab:
-    #         x, y = coords
-    #         print "%s,%.12f,%.12f" % (token, x, y)
-
-
-@cache.decorate('/tmp/sklearn_models-read_sb5b_tweets-min={per_label}.pickle')
-def read_tweets(labels=None, per_label=2500):
-    # ensure a For/Against 50/50 split with per_label per label
-    #   the different classes will be in order, by the way
-    label_groups = dict((label, []) for label in labels)
-    import tsa.data.sb5b.tweets
-    for tweet in tsa.data.sb5b.tweets.read():
-        if tweet['Label'] in label_groups:
-            label_groups[tweet['Label']].append(tweet)
-            # if we have at least `minimum` in each class, we're done.
-            if all(len(label_group) >= per_label for label_group in label_groups.values()):
-                break
-    return [tweet for label_group in label_groups.values() for tweet in label_group[:per_label]]
-
-
-class ClassificationCorpus(object):
-    '''
-    structure to keep related corpus-specific objects all together.
-
-    '''
-    X = None
-    y = None
-    label_names = []
-    label_ids = []
-    dimension_names = []
-
-    def __init__(self, labels=None):
-        self.X = np.array([])
-        if labels is not None:
-            label_names = list(set(labels))
-            self.set_label_names(label_names)
-            self.y = np.array([self.label_ids[label] for label in labels])
-        else:
-            self.y = np.array([])
-
-    def set_label_names(self, label_names):
-        self.label_names = label_names
-        self.label_ids = dict((label, index) for index, label in enumerate(label_names))
-
-    def __iter__(self):
-        '''Allow unpacking like:
-
-        X, y, label_names, label_ids, dimension_names = corpus
-        '''
-        yield self.X
-        yield self.y
-        yield self.label_names
-        yield self.label_ids
-        yield self.dimension_names
-
-    def add_ngram_features(self, documents, min_df=10, max_df=0.99, ngram_max=2):
-        '''
-        ngram features
-
-        documents should be a list/iterable of strings (not tokenized)
-        '''
-        # min_df = 10   : ignore terms that occur less often than in 10 different documents
-        # max_df =  0.99: ignore terms that occur in greater than 99% of document
-        count_vectorizer = CountVectorizer(min_df=min_df, max_df=max_df, ngram_range=(1, ngram_max), token_pattern=ur'\b\S+\b')
-        corpus_count_vectors = count_vectorizer.fit_transform(documents)
-        # hstack doesn't work with sparse arrays, so make it dense
-        #   also, some models require dense arrays -- and
-        #   count_vectorizer.transform gives sparse output normally
-        # only merge non-empty matrices
-        self.X = sparse.hstack([X for X in [self.X, corpus_count_vectors] if X.size > 0])
-
-        # get the BOW vocabulary (and make it an np.array so we can index into it easily)
-        self.dimension_names = np.concatenate((self.dimension_names, np.array(count_vectorizer.get_feature_names())))
-
-    def add_liwc_features(self, documents):
-        liwc = Liwc()
-        corpus_liwc_categories = [liwc.read_document(document) for document in documents]
-        # the identity analyzer means that each document is a list (or generator) of relevant tokens already
-        #   tokenizer or analyzer could be liwc.read_document, perhaps, I'm not sure. More clear like this.
-        liwc_category_vectorizer = CountVectorizer(analyzer=lambda x: x)
-        corpus_liwc_category_vectors = liwc_category_vectorizer.fit_transform(corpus_liwc_categories)
-
-        self.X = sparse.hstack([X for X in [self.X, corpus_liwc_category_vectors] if X.size > 0])
-        self.dimension_names = np.concatenate((self.dimension_names, np.array(liwc_category_vectorizer.get_feature_names())))
-
-    @classmethod
-    def sb5_equal(cls, label_names=['Against', 'For'], per_label=2500):
-        @cache.decorate('/tmp/tsa-corpora-sb5-tweets-min={per_label}.pickle')
-        def cached_read(label_names=label_names, per_label=per_label):
-            label_counts = dict.fromkeys(label_names, per_label)
-            quota = itertools.Quota(**label_counts)
-            from tsa.data.sb5b.tweets import read
-            tweets = quota.filter(read(), keyfunc=lambda tweet: tweet['Label'])
-            # the sort is not really necessary, I think
-            # but sorted always returns a list
-            return sorted(tweets, key=lambda tweet: tweet['TweetTime'])
-
-        corpus = cls()
-        corpus.set_label_names(label_names)
-
-        # read is cached, returns a list (not an iterator)
-        tweets = cached_read(label_names=label_names, per_label=per_label)
-
-        # resolve named labels to integers
-        corpus.y = np.array([corpus.label_ids[tweet['Label']] for tweet in tweets])
-        corpus.X = np.array([])
-
-        documents = [tweet['Tweet'] for tweet in tweets]
-
-        logger.debug('Adding ngram features')
-        corpus.add_ngram_features(documents, min_df=5, max_df=0.95, ngram_max=1)
-
-        logger.silly('Not adding liwc features')
-        # corpus.add_liwc_features(documents)
-
-        # look into caching with np.load and/or stdlib's pickle
-        # http://docs.scipy.org/doc/numpy/reference/generated/numpy.load.html
-
-        logger.debug('ClassificationCorpus.sb5_equal: read %d tweets', len(documents))
-        return corpus
-
-    @classmethod
-    def sb5_all(cls):
-        @cache.decorate('/tmp/tsa-corpora-sb5-tweets-all.pickle')
-        def read():
-            from tsa.data.sb5b.tweets import read
-            return list(read())
-
-        # read is cached, returns a list (not an iterator)
-        tweets = read()
-        # hack - ignore invalid data
-        tweets = [tweet for tweet in tweets if isinstance(tweet['TweetTime'], datetime)]
-
-        # resolve named labels to integers in the __init__ function
-        corpus = cls([tweet['Label'] for tweet in tweets])
-        corpus.tweets = tweets
-
-        documents = [tweet['Tweet'] for tweet in tweets]
-
-        logger.info('Adding ngram features')
-        corpus.add_ngram_features(documents)
-
-        logger.info('Not adding liwc features')
-        # corpus.add_liwc_features(documents)
-
-        logger.debug('ClassificationCorpus.sb5_all: read %d tweets', len(documents))
-
-        return corpus
+    # tweets is now what we want to limit it to
+    y_raw = np.array([tweet['Label'] for tweet in tweets])
+    documents = [tweet['Tweet'] for tweet in tweets]
+    corpus = MulticlassCorpus(y_raw)
+    corpus.apply_features(documents, features.ngrams, ngram_max=1)
+    # logger.info('Not adding liwc features')
+    logger.debug('MulticlassCorpus created: N=%d', corpus.y.size)
+    return corpus
 
 
 def datetime_to_yyyymmdd(x, *args, **kw):
@@ -287,31 +143,10 @@ def mdate_formatter(num, pos=None):
     return datetime_to_yyyymmdd(mdates.num2date(num))
 
 
-'''Numpy axes:
-
->>> grades_by_age = np.array([
-    [98, 14],
-    [92, 15],
-    [87, 13],
-    [93, 14]])
->>> grades_by_age.mean(axis=0)
-array([ 92.5,  14. ])
->>> grades_by_age.mean(axis=1)
-array([ 56. ,  53.5,  50. ,  53.5])
-
-When our rows are observations, usually axis=0 is the only thing that makes sense.
-This is because each cell has much more in common with the rest of the column than the rest of the row.
-
-axis=0: apply function to each column in turn
-axis=1: apply function to each row in turn
-
-This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
-'''
-
-
 def bootstrap():
-    corpus = ClassificationCorpus.sb5_equal()
-    X, y, label_names, label_ids, dimension_names = corpus
+    corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=2500, Against=2500))
+    X, y = corpus
+    # label_names, label_ids, dimension_names
     # make X sliceable:
     X = X.tocsr()
 
@@ -339,7 +174,7 @@ def bootstrap():
 
     for fold, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
         # logger.silly('Fold %d/%d', fold + 1, K)
-        train_indices_counter = Counter(train_indices)
+        # train_indices_counter = Counter(train_indices)
         # repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
         model = linear_model.LogisticRegression(penalty='l2')
@@ -348,8 +183,6 @@ def bootstrap():
         #   then : is assumed for any subsequent dimensions
         # i.e., coefs[fold, :] == coefs[fold, ]
         coefs[fold, :] = model.coef_.ravel()
-
-    qmargins = [0, 5, 10, 50, 90, 95, 100]
 
     print 'coefs_means'
     coefs_means = np.mean(coefs, axis=0)
@@ -447,12 +280,45 @@ def bootstrap():
     plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
 
+def perceptron():
+    # corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=2500, Against=2500))
+    corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=1e9, Against=1e9))
+    X, y = corpus
+    # make X sliceable:
+    X = X.tocsr()
+    print 'label table:', dict(npx.table(y, corpus.classes))
+
+    folds = cross_validation.KFold(y.size, 10, shuffle=True)
+    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+        # Percepton penalty : None, l2 or l1 or elasticnet
+        # model = linear_model.Perceptron(penalty='l1')
+        # LogisticRegression
+        model = linear_model.LogisticRegression(penalty='l2')
+        test_X, test_y = X[test_indices], y[test_indices]
+        train_X, train_y = X[train_indices], y[train_indices]
+        model.fit(train_X, train_y)
+
+        pred_y = model.predict(test_X)
+        result = metrics_dict(test_y, pred_y)
+        print 'Accuracy:', result['accuracy']
+        coefs = model.coef_.ravel()
+        # mid_coefs = coefs[np.abs(coefs) < 1]
+
+        hist(coefs)
+        format.quantiles(coefs, qs=qmargins)
+        print 'sparsity (fraction of coef == 0)', (coefs == 0).mean()
+        print
+
+    IPython.embed(); raise SystemExit(101)
+
+
+main = perceptron
+
 def to_gensim(array):
     # convert a csr corpus to what gensim wants: a list of list of tuples
     mat = sparse.csr_matrix(array)
     return [zip(row.indices, row.data) for row in mat]
 
-import gensim
 
 def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
     if tfidf_transform:
@@ -492,11 +358,6 @@ def topics(num_topics=5):
         print '---'
         print label_i, ':', label_name
         explore_topics(topic_model)
-
-    IPython.embed(); raise SystemExit(45)
-
-
-main = topics
 
 
 def explore_coefs(coefs):
@@ -634,8 +495,6 @@ def label_proportions():
     # plt.axis('tight')
     # plt.margins(0.025, tight=True)
 
-    IPython.embed(); raise SystemExit(43)
-
     plt.close('all')
     plt.title('For/Against manual annotations')
     # fig.suptitle('Annotations', fontsize=18)
@@ -668,8 +527,6 @@ def label_proportions():
     plt.legend()
 
     # plt.savefig('plot-all.pdf')
-
-    IPython.embed(); raise SystemExit(44)
 
     # plt.hist(dtseconds[(pred == label_ids['Against']) & ~train_mask],
     #     bins=bins, alpha=0.75, color='blue')
@@ -830,8 +687,6 @@ def tweets_scikit():
 
         coefs = model.coef_.ravel()
         expcoefs = np.exp(coefs)
-
-        IPython.embed()
 
         for proportion in proportions:
             size = int(train_indices.size * proportion)
