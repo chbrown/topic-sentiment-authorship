@@ -32,6 +32,12 @@ def edge_indices(array, n):
 def edge_and_median_indices(array, n):
     return head_indices(array, n) + median_indices(array, n) + tail_indices(array, n)
 
+def bounds(a, axis=None):
+    '''
+    Simply call both min and max at once.
+    return a tuple: (min, max)
+    '''
+    return (np.min(a, axis=axis), np.max(a, axis=axis))
 
 # def edgeindices(edgeitems):
 #     # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
@@ -55,6 +61,7 @@ def bootstrap(n, n_iter, proportion=1.0):
     '''
     size = int(n * proportion)
     for _ in range(n_iter):
+        # the bootstrap samples with replacement
         yield np.random.choice(n, size=size, replace=True), []
 
 
@@ -101,6 +108,8 @@ def datetime64(x):
         return np.datetime64(x)
     except ValueError:
         return np.datetime64()
+
+datetime64 = np.vectorize(datetime64)
 
 
 def mean_accumulate(array, axis=0, dtype=None):

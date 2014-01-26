@@ -25,6 +25,16 @@ Tools built on computational linguistic concepts to accompany my research at the
 See `/usr/share/postgresql/tsearch_data/english.stop` for postgres' listing of stop words.
 
 
+### Numpy slicing
+
+From the docs:
+
+> If the number of objects in the selection tuple is less than N,
+> then : is assumed for any subsequent dimensions
+
+Thus, if `coefs` is a two-dimensional array, `coefs[fold, ]` is the same as `coefs[fold, :]` (but not the same as `coefs[fold]`).
+
+
 ### Numpy axes:
 
 **Aggregate functions**
@@ -46,6 +56,19 @@ This is because each cell has much more in common with the rest of the column th
     array([ 56. ,  53.5,  50. ,  53.5])
 
 This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
+
+
+### Numpy array creation
+
+Supposedly, specifying `count` speeds up `fromiter`:
+
+    coefs = np.fromiter(bootstrap_coefs(folds), count=K)
+
+
+### Numpy concatenation
+
+- `hstack`: Stack arrays in sequence horizontally (column wise).
+- `vstack`: Stack arrays in sequence vertically (row wise).
 
 
 ## License

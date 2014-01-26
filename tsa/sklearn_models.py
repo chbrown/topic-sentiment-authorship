@@ -17,7 +17,7 @@ logger.level = 10  # SILLY < 10 <= DEBUG
 
 import numpy as np
 np.set_printoptions(edgeitems=25, threshold=100, linewidth=terminal.width())
-# import scipy
+import scipy
 from scipy import sparse
 import pandas as pd
 pd.options.display.max_rows = 200
@@ -97,7 +97,7 @@ def read_sb5b_MulticlassCorpus(limits=None, sort=True):
             if isinstance(tweet['TweetTime'], datetime):
                 yield tweet
             else:
-                # there's just one invalid tweet -- with all null values
+                # there's just one invalid tweet - I'm pretty it's the header row
                 logger.debug('Ignoring invalid tweet: %r', tweet)
 
     tweets = cached_read()
@@ -115,9 +115,11 @@ def read_sb5b_MulticlassCorpus(limits=None, sort=True):
 
     # tweets is now what we want to limit it to
     y_raw = np.array([tweet['Label'] for tweet in tweets])
-    documents = [tweet['Tweet'] for tweet in tweets]
     corpus = MulticlassCorpus(y_raw)
-    corpus.apply_features(documents, features.ngrams, ngram_max=1)
+    corpus.tweets = tweets
+    documents = [tweet['Tweet'] for tweet in tweets]
+    corpus.apply_features(documents, features.ngrams,
+        ngram_max=1, min_df=0.001, max_df=0.95)
     # logger.info('Not adding liwc features')
     logger.debug('MulticlassCorpus created: N=%d', corpus.y.size)
     return corpus
@@ -143,45 +145,30 @@ def mdate_formatter(num, pos=None):
     return datetime_to_yyyymmdd(mdates.num2date(num))
 
 
+def datetime64_formatter(x, pos=None):
+    # matplotlib converts to floats, internally, so we have to convert back out
+    return datetime_to_yyyymmdd(x.astype('datetime64[s]').astype(datetime))
+
+
 def bootstrap():
-    corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=2500, Against=2500))
+    # corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=2500, Against=2500))
+    corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=1e9, Against=1e9))
     X, y = corpus
-    # label_names, label_ids, dimension_names
-    # make X sliceable:
-    X = X.tocsr()
 
     logger.debug('bootstrap(): X.shape = %s, y.shape = %s', X.shape, y.shape)
     # -> X.shape: (5000, 2009), y.shape: (5000,)
 
-    # presumably, specifying "count" speeds things up
-    # coefs = np.fromiter(bootstrap_coefs(folds), count=K)
-
-    # hstack: Stack arrays in sequence horizontally (column wise).
-    # vstack: Stack arrays in sequence vertically (row wise).
-
-    K = 2000
-    # X.shape[1] == len(dimension_names)
-    # coefs = np.empty((K, X.shape[1]))
+    K = 1000
     # each row in coefs represents the results from a single bootstrap run
+    # coefs = np.empty((K, X.shape[1]))
     coefs = np.zeros((K, X.shape[1]))
 
-    # KFold(y.size, 10, shuffle=True)
-    # cross_validation.Bootstrap(n, n_iter=3, train_size=0.5, test_size=None)
-    # bootstrap samples with replacement
-
-    # folds = cross_validation.Bootstrap(y.size, n_iter=K, train_size=0.9999)
-    folds = npx.bootstrap(y.size, n_iter=K, proportion=0.1)
-
+    folds = npx.bootstrap(y.size, n_iter=K, proportion=0.5)
     for fold, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
-        # logger.silly('Fold %d/%d', fold + 1, K)
-        # train_indices_counter = Counter(train_indices)
         # repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
         model = linear_model.LogisticRegression(penalty='l2')
         model.fit(X[train_indices, :], y[train_indices])
-        # from the docs: If the number of objects in the selection tuple is less than N ,
-        #   then : is assumed for any subsequent dimensions
-        # i.e., coefs[fold, :] == coefs[fold, ]
         coefs[fold, :] = model.coef_.ravel()
 
     print 'coefs_means'
@@ -218,25 +205,15 @@ def bootstrap():
             row_dict = dict()
             for group_name, group_indices in zip(group_names, groups_indices):
                 indices = ordering[group_indices]
-                row_dict[group_name + '-k'] = dimension_names[indices][row]
+                row_dict[group_name + '-k'] = corpus.feature_names[indices][row]
                 row_dict[group_name + '-v'] = array[indices][row]
             printer.write(row_dict)
 
-    print 'means'
-    sample_table(coefs_means, group_size=25)
+    # print 'means'
+    # sample_table(coefs_means, group_size=25)
 
-    # print '- means:'
-    # print 'head:',   dimension_names[means_ordering[npx.head_indices  (means_ordering, 25)]]
-    # print 'median:', dimension_names[means_ordering[npx.median_indices(means_ordering, 25)]]
-    # print 'tail:',   dimension_names[means_ordering[npx.tail_indices  (means_ordering, 25)]]
-
-    print 'stdevs'
-    sample_table(coefs_std_deviations, group_size=25)
-
-    # print '- vars:'
-    # print 'smallest:',   dimension_names[variances_ordering[npx.head_indices  (variances_ordering, 25)]]
-    # print 'averagest:',  dimension_names[variances_ordering[npx.median_indices(variances_ordering, 25)]]
-    # print 'largest:',    dimension_names[variances_ordering[npx.tail_indices  (variances_ordering, 25)]]
+    # print 'stdevs'
+    # sample_table(coefs_std_deviations, group_size=25)
 
     # dimension reduction
     # f_regression help:
@@ -254,10 +231,47 @@ def bootstrap():
     plt.title('Coefficient statistics after %d-iteration bootstrap' % K)
     plt.xlabel('means')
     plt.ylabel('variances')
-    plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
+    # plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
+
+    # model.intercept_
+    times_native = np.array([tweet['TweetTime'] for tweet in corpus.tweets])
+    times = times_native.astype('datetime64[s]')
+
+    first, last = npx.bounds(times)
+    # bins = np.arange(first, last, np.timedelta64(7, 'D'))
+    bins = npx.datespace(first, last, 7, 'D').astype('datetime64[s]')
+
+    def plot_feature_over_time(feature):
+        label = corpus.feature_names[feature]
+        # logger.info('Top feature (#%d): %s', i, corpus.feature_names[order[i]])
+        # toarray() because X is sparse, ravel to make it one-dimension
+        counts = X[:, feature].toarray().ravel()
+        # string statistics: mean, median, count, sum
+        bin_means, _, _ = scipy.stats.binned_statistic(times.astype(float), counts,
+            statistic='mean', bins=bins.astype(float))
+        # the resulting statistic is 1 shorter than the bins
+        plt.plot(bins[:-1], bin_means, label=label)
+
+    # convention: order is most extreme first
+    # order = np.abs(coefs_means).argsort()[::-1]
+    order = np.abs(coefs_variances).argsort()[::-1]
+    # most_extreme_features = order[-10:]
+
+    selection = order[:10]
+    # selection = order[-10:]
+    print 'selected features:', corpus.feature_names[selection]
+
+    plt.cla()
+    for feature in selection:
+        plot_feature_over_time(feature)
+
+    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(datetime64_formatter))
+    plt.legend()
 
 
     IPython.embed(); raise SystemExit(111)
+
+
 
 
     # find the dimensions of the least and most variance
@@ -278,6 +292,9 @@ def bootstrap():
     plt.plot(subset)
     plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])
     plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
+
+
+main = bootstrap
 
 
 def perceptron():
@@ -312,7 +329,6 @@ def perceptron():
     IPython.embed(); raise SystemExit(101)
 
 
-main = perceptron
 
 def to_gensim(array):
     # convert a csr corpus to what gensim wants: a list of list of tuples
@@ -479,7 +495,7 @@ def label_proportions():
     tweet_times_datetime64 = np.array([npx.datetime64(tweet['TweetTime']) for tweet in corpus.tweets])
     tweet_times = tweet_times_datetime64.astype(datetime)
 
-    first, last = np.min(tweet_times_datetime64), np.max(tweet_times_datetime64)
+    first, last = npx.bounds(tweet_times_datetime64)
 
     # bin by week
     bins_datetime64 = np.arange(first, last, np.timedelta64(7, 'D'))
