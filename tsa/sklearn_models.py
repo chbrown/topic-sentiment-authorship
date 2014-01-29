@@ -50,9 +50,11 @@ import gensim
 from tsa import numpy_ext as npx, features
 from tsa.corpora import MulticlassCorpus
 from tsa.lib import cache, tabular, itertools
+from tsa.lib.timer import Timer
 from tsa.scikit import metrics_dict, explore_topics
 # from tsa.scikit import explore_mispredictions, explore_uncertainty
 
+import matplotlib.cm as colormap
 import matplotlib.pyplot as plt
 import matplotlib.dates as mdates
 import matplotlib.ticker as ticker
@@ -82,6 +84,31 @@ def clear():
     # plt.axis('tight')
     # plt.tight_layout()
     plt.margins(0.025, tight=True)
+
+
+def styles():
+    # can distinguish about six different colors from rainbox
+    colors = colormap.rainbow(np.linspace(1, 0, 6))
+    # and a few different linestyles
+    linestyles = ['-', ':', '--', '-.']
+    # and linewidth
+    linewidths = [1, 2, 3]
+    for linewidth in linewidths:
+        for linestyle in linestyles:
+            for color in colors:
+                yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
+
+
+def binned_timeseries(times, values, time_units_per_bin=1, time_unit='D', statistic='mean'):
+    first, last = npx.bounds(times)
+    bins = npx.datespace(first, last, time_units_per_bin, time_unit).astype('datetime64[s]')
+    # valid "statistic" strings: mean, median, count, sum
+    result = scipy.stats.binned_statistic(times.astype(float), values,
+        statistic=statistic, bins=bins.astype(float))
+    bin_statistics, bin_edges, bin_number = result
+    # the resulting statistic is 1 shorter than the bins
+    # return the left edges of the bins, and the resulting statistics
+    return bins[:-1], bin_statistics
 
 
 def read_sb5b_MulticlassCorpus(limits=None, sort=True):
@@ -150,70 +177,91 @@ def datetime64_formatter(x, pos=None):
     return datetime_to_yyyymmdd(x.astype('datetime64[s]').astype(datetime))
 
 
-def bootstrap():
-    # corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=2500, Against=2500))
-    corpus = read_sb5b_MulticlassCorpus(sort=True, limits=dict(For=1e9, Against=1e9))
-    X, y = corpus
+def sample_table(feature_names, array, group_size=25):
+    # Looking at the extremes
+    ordering = array.argsort()
+    group_names = ['smallest', 'median', 'largest']
+    headers = [cell for group_name in group_names for cell in [group_name + '-v', group_name + '-k']]
+    groups_indices = [
+        npx.head_indices(array, group_size),
+        npx.median_indices(array, group_size),
+        npx.tail_indices(array, group_size)]
+    printer = tabular.Printer(headers=headers, FS=' & ', RS='\\\\\n')
+    printer.write_strings(printer.headers)
+    for row in range(group_size):
+        row_dict = dict()
+        for group_name, group_indices in zip(group_names, groups_indices):
+            indices = ordering[group_indices]
+            row_dict[group_name + '-k'] = feature_names[indices][row]
+            row_dict[group_name + '-v'] = array[indices][row]
+        printer.write(row_dict)
 
-    logger.debug('bootstrap(): X.shape = %s, y.shape = %s', X.shape, y.shape)
-    # -> X.shape: (5000, 2009), y.shape: (5000,)
 
-    K = 1000
+def bootstrap_model(X, y, n_iter=100, proportion=0.5):
     # each row in coefs represents the results from a single bootstrap run
-    # coefs = np.empty((K, X.shape[1]))
-    coefs = np.zeros((K, X.shape[1]))
-
-    folds = npx.bootstrap(y.size, n_iter=K, proportion=0.5)
-    for fold, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
-        # repeats = sum(1 for _, count in train_indices_counter.items() if count > 1)
+    coefs = np.zeros((n_iter, X.shape[1]))
+    folds = npx.bootstrap(y.size, n_iter=n_iter, proportion=proportion)
+    for fold, (train_indices, _) in itertools.sig_enumerate(folds, logger=logger):
+        # repeats = sum(1 for _, count in Counter(train_indices).items() if count > 1)
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
         model = linear_model.LogisticRegression(penalty='l2')
         model.fit(X[train_indices, :], y[train_indices])
         coefs[fold, :] = model.coef_.ravel()
+    return coefs
+
+
+def standard():
+    corpus = read_sb5b_MulticlassCorpus(sort=True)
+    # corpus.times = np.array([tweet['TweetTime'] for tweet in corpus.tweets]).astype('datetime64[s]')
+    X, y = corpus
+    # ya get some weird things if you leave X in CSC format,
+    # particularly if you index it with a boolmask
+    X = X.tocsr()
+
+    logger.debug('standard(): X.shape = %s, y.shape = %s', X.shape, y.shape)
+
+    labeled_mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
+    labeled_indices = npx.bool_mask_to_indices(labeled_mask)
+    n_iter = 100
+    coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
+        n_iter=n_iter, proportion=0.5)
+    coefs_means = np.mean(coefs, axis=0)
+    coefs_variances = np.var(coefs, axis=0)
 
     print 'coefs_means'
-    coefs_means = np.mean(coefs, axis=0)
     hist(coefs_means)
     format.quantiles(coefs_means, qs=qmargins)
-
-    print 'coefs_std_deviations'
-    coefs_std_deviations = np.std(coefs, axis=0)
-    hist(coefs_std_deviations)
-    format.quantiles(coefs_std_deviations, qs=qmargins)
-
-    print 'coefs_variances'
-    coefs_variances = np.var(coefs, axis=0)
-    hist(coefs_variances)
-    format.quantiles(coefs_variances, qs=qmargins)
-
-    cumulative_coefs_means = npx.mean_accumulate(coefs, axis=0)
-    cumulative_coefs_variances = npx.var_accumulate(coefs, axis=0)
-    # cumulative_coefs_variances.shape = (1000, 2009)
-
-    # Looking at the extremes
-    def sample_table(array, group_size=25):
-        ordering = array.argsort()
-        group_names = ['smallest', 'median', 'largest']
-        headers = [cell for group_name in group_names for cell in [group_name + '-v', group_name + '-k']]
-        groups_indices = [
-            npx.head_indices(array, group_size),
-            npx.median_indices(array, group_size),
-            npx.tail_indices(array, group_size)]
-        printer = tabular.Printer(headers=headers, FS=' & ', RS='\\\\\n')
-        printer.write_strings(printer.headers)
-        for row in range(group_size):
-            row_dict = dict()
-            for group_name, group_indices in zip(group_names, groups_indices):
-                indices = ordering[group_indices]
-                row_dict[group_name + '-k'] = corpus.feature_names[indices][row]
-                row_dict[group_name + '-v'] = array[indices][row]
-            printer.write(row_dict)
-
-    # print 'means'
     # sample_table(coefs_means, group_size=25)
 
-    # print 'stdevs'
-    # sample_table(coefs_std_deviations, group_size=25)
+    print 'coefs_variances'
+    hist(coefs_variances)
+    format.quantiles(coefs_variances, qs=qmargins)
+    # sample_table(coefs_variances, group_size=25)
+
+    plt.scatter(coefs_means, coefs_variances, alpha=0.2)
+    plt.title('Coefficient statistics after %d-iteration bootstrap' % n_iter)
+    plt.xlabel('means')
+    plt.ylabel('variances')
+
+    model = linear_model.RandomizedLogisticRegression()
+    model.fit(X[labeled_indices], y[labeled_indices])
+
+    IPython.embed(); raise SystemExit(91)
+
+    random_lr_coefs = model.coef_.ravel()
+
+    # plt.scatter(
+
+    # folds = cross_validation.KFold(y.size, 10, shuffle=True)
+    # for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+    #     test_X, test_y = X[test_indices], y[test_indices]
+    #     train_X, train_y = X[train_indices], y[train_indices]
+    #     model.fit(train_X, train_y)
+
+
+    # cumulative_coefs_means = npx.mean_accumulate(coefs, axis=0)
+    # cumulative_coefs_variances = npx.var_accumulate(coefs, axis=0)
+    # cumulative_coefs_variances.shape = (1000, 2009)
 
     # dimension reduction
     # f_regression help:
@@ -227,52 +275,91 @@ def bootstrap():
     # train_pval.shape = (4729,)
     # ranked_dimensions = np.argsort(train_pval)
     # ranked_names = dimension_names[np.argsort(train_pval)]
-    plt.scatter(coefs_means, coefs_variances, alpha=0.2)
-    plt.title('Coefficient statistics after %d-iteration bootstrap' % K)
-    plt.xlabel('means')
-    plt.ylabel('variances')
+
+    # balance training set:
+    # per_label = 2500
+    # against_indices = npx.bool_mask_to_indices(y == label_ids['Against'])
+    # against_selection = np.random.choice(against_indices, per_label, replace=False)
+    # for_indices = npx.bool_mask_to_indices(y == label_ids['For'])
+    # for_selection = np.random.choice(for_indices, per_label, replace=False)
+    # balanced_labels_indices = np.concatenate((against_selection, for_selection))
+
+    # extreme_features = set(np.abs(coefs_means).argsort()[::-1][:50]) | set(coefs_variances.argsort()[::-1][:50])
+    # for feature in extreme_features:
+    #     plt.annotate(corpus.feature_names[feature], xy=(coefs_means[feature], coefs_variances[feature]))
+
     # plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
 
     # model.intercept_
-    times_native = np.array([tweet['TweetTime'] for tweet in corpus.tweets])
-    times = times_native.astype('datetime64[s]')
-
-    first, last = npx.bounds(times)
-    # bins = np.arange(first, last, np.timedelta64(7, 'D'))
-    bins = npx.datespace(first, last, 7, 'D').astype('datetime64[s]')
-
-    def plot_feature_over_time(feature):
-        label = corpus.feature_names[feature]
-        # logger.info('Top feature (#%d): %s', i, corpus.feature_names[order[i]])
-        # toarray() because X is sparse, ravel to make it one-dimension
-        counts = X[:, feature].toarray().ravel()
-        # string statistics: mean, median, count, sum
-        bin_means, _, _ = scipy.stats.binned_statistic(times.astype(float), counts,
-            statistic='mean', bins=bins.astype(float))
-        # the resulting statistic is 1 shorter than the bins
-        plt.plot(bins[:-1], bin_means, label=label)
-
-    # convention: order is most extreme first
-    # order = np.abs(coefs_means).argsort()[::-1]
-    order = np.abs(coefs_variances).argsort()[::-1]
-    # most_extreme_features = order[-10:]
-
-    selection = order[:10]
-    # selection = order[-10:]
-    print 'selected features:', corpus.feature_names[selection]
-
-    plt.cla()
-    for feature in selection:
-        plot_feature_over_time(feature)
-
-    plt.gca().xaxis.set_major_formatter(ticker.FuncFormatter(datetime64_formatter))
-    plt.legend()
-
 
     IPython.embed(); raise SystemExit(111)
 
+    # minimum, maximum = npx.bounds(times)
+    # npx.datespace(minimum, maximum, 7, 'D')
+
+    features = np.arange(X.shape[1])
+    bin_variance = np.zeros(X.shape[1])
+    print 'when binned by day, what features have the greatest variance?'
+    for feature in features:
+        counts = X[:, feature].toarray().ravel()
+        bin_edges, bin_values = binned_timeseries(times, counts, 7, 'D')
+        bin_variance[feature] = np.nanvar(bin_values)
+
+    hist(bin_variance)
+
+    # X.sum(axis=0)
+    # totals is the total number of times each word has been seen in the corpus
+    totals = np.sum(X.toarray(), axis=0).ravel()
+    order = totals.argsort()[::-1]
+
+    # plt.hist(totals)
+    # from bokeh.plotting import *
+
+    plt.cla()
+    plt.scatter(totals, coefs_means, alpha=0.3)
+    selection = order[:10]
+    print 'tops:', corpus.feature_names[selection]
+
+    # convention: order is most extreme first
+    order = np.abs(coefs_means).argsort()[::-1]
+    # order = np.abs(coefs_variances).argsort()[::-1]
+    # most_extreme_features = order[-10:]
+
+    selection = order[:12]
+    # selection = order[-10:]
+    print 'selected features:', corpus.feature_names[selection]
 
 
+    # plt.plot(a)
+    # plt.plot(smooth(a, 20, .75))
+    # .reshape((1,-1))
+    window = 7
+    alpha = .5
+
+    def smooth_days(corpus, selection, window=7, alpha=.5, time_units_per_bin=1, time_unit='D'):
+        style_iter = styles()
+        plt.cla()
+        axes = plt.gca()
+        for feature in selection:
+            # toarray() because X is sparse, ravel to make it one-dimension
+            counts = corpus.X[:, feature].toarray().ravel()
+            bin_edges, bin_values = binned_timeseries(corpus.times, counts, time_units_per_bin, time_unit)
+            smoothed_bin_values = npx.exponential_decay(bin_values, window=window, alpha=alpha)
+            style_kwargs = style_iter.next()
+            # plt.plot(bin_edges, bin_values,
+            #     drawstyle='steps-post', **style_kwargs)
+            plt.plot(bin_edges, smoothed_bin_values, label=corpus.feature_names[feature], **style_kwargs)
+        axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime64_formatter))
+        plt.legend(loc='top left')
+
+
+    # , bbox_to_anchor=(1, 0.5)
+    # plt.legend(bbox_to_anchor=(0, 1))
+    # box = axes.get_position()
+    # axes.set_position([box.x0, box.y0, box.width * 0.8, box.height])
+    smooth_days(corpus, selection, 7, .5, 1, 'D')
+    smooth_days(corpus, selection, 1, 1, 7, 'D')
+    plt.vlines(np.array(npx.bounds(corpus.times[labeled_indices])).astype(float), *plt.ylim())
 
     # find the dimensions of the least and most variance
     indices = npx.edge_indices(ordering, 25)
@@ -294,8 +381,54 @@ def bootstrap():
     plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
 
-main = bootstrap
+    # probabilistic models can give us log loss
+                # pred_probabilities = model.predict_proba(test_X)
+                # results['log_loss'] = metrics.log_loss(test_y, pred_probabilities)
+                # linear coefficients give us a reasonable measure of sparsity
+                # results['sparsity'] = np.mean(model.coef_.ravel() == 0)
 
+    # Look into cross_validation.StratifiedKFold
+    # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20)
+
+            # logger.info('Overall %s; log loss: %0.4f; sparsity: %0.4f')
+            # logger.info('k=%d, proportion=%.2f; %d train, %d test, results: %s',
+                # k, proportion, len(train_indices_subset),, results)
+
+            # print 'Accuracy: %0.5f, F1: %0.5f' % (
+            #     metrics.accuracy_score(test_y, pred_y),
+            #     metrics.f1_score(test_y, pred_y))
+            # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
+            # print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=label_names)
+
+            # logger.info('explore_mispredictions')
+            # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
+            # logger.info('explore_uncertainty')
+            # explore_uncertainty(test_X, test_y, model)
+
+        # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
+        # print 'train_F_hmean', train_F_hmean
+        # neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
+        # print '-train_pval_hmean', neg_train_pval_hmean
+
+        # print corpus_types[np.argsort(model.coef_)]
+        # the mean of a list of booleans returns the percentage of trues
+        # logger.info('Sparsity: {sparsity:.2%}'.format(sparsity=sparsity))
+
+        # train_X.shape shrinkage:: (4500, 18884) -> (4500, 100)
+        # train_X = train_X[:, ranked_dimensions[:top_k]]
+        # train_X.shape shrinkage: (500, 18884) -> (500, 100)
+        # test_X = test_X[:, ranked_dimensions[:top_k]]
+
+        # train_X, test_X = X[train_indices], X[test_indices]
+        # train_y, test_y = y[train_indices], y[test_indices]
+
+        # nice L1 vs. L2 norm tutorial: http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
+
+        # if k == 9:
+        #     print '!!! randomizing predictions'
+        #     pred_y = [random.choice((0, 1)) for _ in pred_y]
+
+main = standard
 
 def perceptron():
     # corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=2500, Against=2500))
@@ -581,12 +714,6 @@ def explore_texts(corpus):
      # [text for text in texts if ]
 
 
-def tweets_scikit():
-    corpus = ClassificationCorpus.sb5()
-    X, y, label_names, label_ids, dimension_names = corpus
-
-    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
-
     # prepend the liwc categories with a percent sign
     # liwc_names = ['%' + category for category in category_vectorizer.get_feature_names()]
     # dimension_names = np.hstack((dimension_names, liwc_names))
@@ -643,43 +770,36 @@ def tweets_scikit():
     #     gg.scale_x_continuous('Coefficients', labels=list(x_ticks), breaks=list(x_ticks))
 
     # gg.geom_point(weight='coef')
-    # print edges.describe()
+
+
+def grid():
+    corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=1e9, Against=1e9))
+    X, y = corpus
+    # make X sliceable:
+    X = X.tocsr()
+
+    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
+    timer = Timer()
     printer = tabular.Printer()
 
-    # def evaluate(model, train_indices, test_indices):
-    def run(sklearn_model, train_indices, test_indices, **results):
-        started = time.time()
-        # requires globals: label_names, X, y
-        test_X, test_y = X[test_indices], y[test_indices]
-        train_X, train_y = X[train_indices], y[train_indices]
-        sklearn_model.fit(train_X, train_y)
-        # predict using the model just trained
-        pred_y = sklearn_model.predict(test_X)
-        results.update(**metrics_dict(test_y, pred_y))
-        # probabilistic models can give us log loss
-        # pred_probabilities = model.predict_proba(test_X)
-        # results['log_loss'] = metrics.log_loss(test_y, pred_probabilities)
-        # linear coefficients give us a reasonable measure of sparsity
-        # results['sparsity'] = np.mean(model.coef_.ravel() == 0)
-        results['elapsed'] = (time.time() - started)
-        printer.write(results)
-
-    # loop over the n_folds
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
     proportions = [0.005, 0.0075, 0.01, 0.05, 0.1, 0.25, 0.333, 0.5, 0.666, 0.75, 1.0]
     models = [
         ('logistic_regression-L1', linear_model.LogisticRegression(penalty='l1', dual=False)),
         ('logistic_regression-L2', linear_model.LogisticRegression(penalty='l2', dual=False)),
         ('logistic_regression-L2-C100', linear_model.LogisticRegression(penalty='l2', C=100.0)),
-        ('sgd', linear_model.SGDClassifier()),
-        ('linear-svc-L2', svm.LinearSVC(penalty='l2')),
-        ('linear-svc-L1', svm.LinearSVC(penalty='l1', dual=False)),
-        ('random-forest', ensemble.RandomForestClassifier(n_estimators=10, criterion='gini',
-            max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
-            bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
-            min_density=None, compute_importances=None)),
-        ('naivebayes', naive_bayes.MultinomialNB()),
-        ('knn-10', neighbors.KNeighborsClassifier(10)),
+        # ('randomized_logistic_regression', linear_model.RandomizedLogisticRegression()),
+        # ('sgd', linear_model.SGDClassifier()),
+        ('perceptron-L1', linear_model.Perceptron(penalty='l1')),
+        ('perceptron-L2', linear_model.Perceptron(penalty='l2')),
+        # ('linear-svc-L2', svm.LinearSVC(penalty='l2')),
+        # ('linear-svc-L1', svm.LinearSVC(penalty='l1', dual=False)),
+        # ('random-forest', ensemble.RandomForestClassifier(n_estimators=10, criterion='gini',
+        #     max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
+        #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
+        #     min_density=None, compute_importances=None)),
+        # ('naivebayes', naive_bayes.MultinomialNB()),
+        # ('knn-10', neighbors.KNeighborsClassifier(10)),
         # ('neuralnet', neural_network.BernoulliRBM()),
         # ('qda', qda.QDA()),
         # ('knn-3', neighbors.KNeighborsClassifier(3)),
@@ -689,66 +809,35 @@ def tweets_scikit():
         # ('adaboost-50', ensemble.AdaBoostClassifier(n_estimators=50)),
     ]
 
-    logging.root.level = 40
-    # logger.level = 40
-    # Look into cross_validation.StratifiedKFold
-    # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20)
     # in KFold, if shuffle=False, we look at a sliding window for the test sets, starting at the left
-    for fold_index, (train_indices, test_indices) in enumerate(folds):
-
-        model = linear_model.LogisticRegression(penalty='l2')
-        test_X, test_y = X[test_indices], y[test_indices]
-        train_X, train_y = X[train_indices], y[train_indices]
-        model.fit(train_X, train_y)
-
-        coefs = model.coef_.ravel()
-        expcoefs = np.exp(coefs)
-
+    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+        # for each fold
         for proportion in proportions:
+            # for each proportion
             size = int(train_indices.size * proportion)
             train_indices_subset = np.random.choice(train_indices, size=size, replace=False)
-            for model, sklearn_model in models:
-                results = dict(fold=fold_index, model=model, proportion=proportion,
-                    train=len(train_indices_subset), test=len(test_indices))
-                run(sklearn_model, train_indices_subset, test_indices, **results)
+            for model_name, model in models:
+                # for each model
+                test_X, test_y = X[test_indices], y[test_indices]
+                train_X, train_y = X[train_indices], y[train_indices]
+                with timer:
+                    # fit and predict
+                    model.fit(train_X, train_y)
+                    pred_y = model.predict(test_X)
 
-            # logger.info('Overall %s; log loss: %0.4f; sparsity: %0.4f')
-            # logger.info('k=%d, proportion=%.2f; %d train, %d test, results: %s',
-                # k, proportion, len(train_indices_subset),, results)
+                results = metrics_dict(test_y, pred_y)
 
-            # print 'Accuracy: %0.5f, F1: %0.5f' % (
-            #     metrics.accuracy_score(test_y, pred_y),
-            #     metrics.f1_score(test_y, pred_y))
-            # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
-            # print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=label_names)
+                results.update(
+                    fold=fold_index,
+                    model=model_name,
+                    proportion=proportion,
+                    train=len(train_indices_subset),
+                    test=len(test_indices),
+                    elapsed=timer.elapsed,
+                )
 
-            # logger.info('explore_mispredictions')
-            # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
-            # logger.info('explore_uncertainty')
-            # explore_uncertainty(test_X, test_y, model)
+                printer.write(results)
 
-        # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
-        # print 'train_F_hmean', train_F_hmean
-        # neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
-        # print '-train_pval_hmean', neg_train_pval_hmean
-
-        # print corpus_types[np.argsort(model.coef_)]
-        # the mean of a list of booleans returns the percentage of trues
-        # logger.info('Sparsity: {sparsity:.2%}'.format(sparsity=sparsity))
-
-        # train_X.shape shrinkage:: (4500, 18884) -> (4500, 100)
-        # train_X = train_X[:, ranked_dimensions[:top_k]]
-        # train_X.shape shrinkage: (500, 18884) -> (500, 100)
-        # test_X = test_X[:, ranked_dimensions[:top_k]]
-
-        # train_X, test_X = X[train_indices], X[test_indices]
-        # train_y, test_y = y[train_indices], y[test_indices]
-
-        # nice L1 vs. L2 norm tutorial: http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
-
-        # if k == 9:
-        #     print '!!! randomizing predictions'
-        #     pred_y = [random.choice((0, 1)) for _ in pred_y]
 
 
 if __name__ == '__main__':

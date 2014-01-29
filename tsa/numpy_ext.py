@@ -39,6 +39,20 @@ def bounds(a, axis=None):
     '''
     return (np.min(a, axis=axis), np.max(a, axis=axis))
 
+def dist(a):
+    '''Return an array that's proportional to a, but sums to 1.'''
+    return a / a.sum()
+
+def exponential_decay(a, window=10, alpha=.5):
+    # smoother
+    # returns vector as long as input a. trails off to the left
+    distribution = dist(alpha**np.arange(window))
+    # distribution now sums to one, and each item is roughly alpha*previous_item
+    window_distribution = distribution[::-1]
+    windows = [range(index - window, index) for index in np.arange(1, a.size + 1)]
+    windows = np.array(windows).clip(0)
+    return (a[windows]*window_distribution).sum(axis=1)
+
 # def edgeindices(edgeitems):
 #     # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
 #     # (n) -> [0, 1, ..., (n - 1), -n, -(n + 1), ..., -(n - 1)]
@@ -62,6 +76,8 @@ def bootstrap(n, n_iter, proportion=1.0):
     size = int(n * proportion)
     for _ in range(n_iter):
         # the bootstrap samples with replacement
+        # return an empty list for the test set so that we can drop-in replace
+        # sklearn's Bootstrap
         yield np.random.choice(n, size=size, replace=True), []
 
 
@@ -82,7 +98,11 @@ def datespace(minimum, maximum, num, unit):
     delta = np.timedelta64(num, unit)
     start = minimum.astype('datetime64[%s]' % unit)
     end = maximum.astype('datetime64[%s]' % unit) + delta
-    return np.arange(start, end + delta, delta).astype(minimum.dtype)
+    # depending on how much lower the unit-floor took us,
+    # we might need one more delta to cover maximum
+    if maximum > end.astype(maximum.dtype):
+        end += delta
+    return np.arange(start, end, delta).astype(minimum.dtype)
 
 
 def table(ys, names=None):
