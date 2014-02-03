@@ -25,7 +25,6 @@ pd.options.display.max_columns = 10
 pd.options.display.width = terminal.width()
 
 
-
 from collections import Counter
 from sklearn import cross_validation
 # from sklearn import metrics
@@ -144,11 +143,17 @@ def read_sb5b_MulticlassCorpus(limits=None, sort=True):
     y_raw = np.array([tweet['Label'] for tweet in tweets])
     corpus = MulticlassCorpus(y_raw)
     corpus.tweets = tweets
+
+    times = [tweet['TweetTime'] for tweet in tweets]
+    corpus.times = np.array(times).astype('datetime64[s]')
+
     documents = [tweet['Tweet'] for tweet in tweets]
     corpus.apply_features(documents, features.ngrams,
         ngram_max=1, min_df=0.001, max_df=0.95)
-    # logger.info('Not adding liwc features')
-    logger.debug('MulticlassCorpus created: N=%d', corpus.y.size)
+    logger.debug('MulticlassCorpus created: %s', corpus.X.shape)
+    # this corpus has the following additional attributes:
+    #   tweets
+    #   times
     return corpus
 
 
@@ -204,21 +209,50 @@ def bootstrap_model(X, y, n_iter=100, proportion=0.5):
     for fold, (train_indices, _) in itertools.sig_enumerate(folds, logger=logger):
         # repeats = sum(1 for _, count in Counter(train_indices).items() if count > 1)
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
-        model = linear_model.LogisticRegression(penalty='l2')
+        model = linear_model.LogisticRegression(penalty='l2', fit_intercept=False)
         model.fit(X[train_indices, :], y[train_indices])
         coefs[fold, :] = model.coef_.ravel()
     return coefs
 
 
+def confidence():
+    corpus = read_sb5b_MulticlassCorpus(sort=True)
+    X, y = corpus
+    X = X.tocsr()
+
+    labeled_mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
+    labeled_indices = npx.bool_mask_to_indices(labeled_mask)
+    n_iter = 100
+    coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
+        n_iter=n_iter, proportion=0.5)
+    coefs_means = np.mean(coefs, axis=0)
+    # coefs_variances = np.var(coefs, axis=0)
+
+    model = linear_model.LogisticRegression(penalty='l2')
+    model.coef_ = coefs_means
+    # probabilistic models, like LogReg, can give us log loss
+    pred_probabilities = model.predict_proba(X[labeled_indices])
+
+    IPython.embed(); raise SystemExit(91)
+
+    results['log_loss'] = metrics.log_loss(test_y, pred_probabilities)
+    # linear coefficients give us a reasonable measure of sparsity
+    results['sparsity'] = np.mean(model.coef_.ravel() == 0)
+
+
+    # logger.info('explore_mispredictions')
+    # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
+    # logger.info('explore_uncertainty')
+    # explore_uncertainty(test_X, test_y, model)
+
+
+
 def standard():
     corpus = read_sb5b_MulticlassCorpus(sort=True)
-    # corpus.times = np.array([tweet['TweetTime'] for tweet in corpus.tweets]).astype('datetime64[s]')
     X, y = corpus
     # ya get some weird things if you leave X in CSC format,
     # particularly if you index it with a boolmask
     X = X.tocsr()
-
-    logger.debug('standard(): X.shape = %s, y.shape = %s', X.shape, y.shape)
 
     labeled_mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
     labeled_indices = npx.bool_mask_to_indices(labeled_mask)
@@ -243,8 +277,8 @@ def standard():
     plt.xlabel('means')
     plt.ylabel('variances')
 
-    model = linear_model.RandomizedLogisticRegression()
-    model.fit(X[labeled_indices], y[labeled_indices])
+    # model = linear_model.RandomizedLogisticRegression()
+    # model.fit(X[labeled_indices], y[labeled_indices])
 
     IPython.embed(); raise SystemExit(91)
 
@@ -381,12 +415,6 @@ def standard():
     plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
 
-    # probabilistic models can give us log loss
-                # pred_probabilities = model.predict_proba(test_X)
-                # results['log_loss'] = metrics.log_loss(test_y, pred_probabilities)
-                # linear coefficients give us a reasonable measure of sparsity
-                # results['sparsity'] = np.mean(model.coef_.ravel() == 0)
-
     # Look into cross_validation.StratifiedKFold
     # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20)
 
@@ -399,11 +427,6 @@ def standard():
             #     metrics.f1_score(test_y, pred_y))
             # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
             # print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=label_names)
-
-            # logger.info('explore_mispredictions')
-            # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
-            # logger.info('explore_uncertainty')
-            # explore_uncertainty(test_X, test_y, model)
 
         # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
         # print 'train_F_hmean', train_F_hmean
@@ -428,7 +451,7 @@ def standard():
         #     print '!!! randomizing predictions'
         #     pred_y = [random.choice((0, 1)) for _ in pred_y]
 
-main = standard
+main = confidence
 
 def perceptron():
     # corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=2500, Against=2500))
