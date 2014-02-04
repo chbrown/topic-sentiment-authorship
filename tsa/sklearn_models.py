@@ -1,3 +1,4 @@
+# -*- coding: utf-8 -*-
 import IPython
 import os
 import time
@@ -5,6 +6,7 @@ from datetime import datetime
 # from datetime import timedelta
 
 from tsa import logging
+import viz
 from viz import terminal, format
 from viz.geom import hist
 
@@ -27,7 +29,7 @@ pd.options.display.width = terminal.width()
 
 from collections import Counter
 from sklearn import cross_validation
-# from sklearn import metrics
+from sklearn import metrics
 from sklearn import linear_model
 from sklearn import naive_bayes
 from sklearn import neighbors
@@ -157,31 +159,6 @@ def read_sb5b_MulticlassCorpus(limits=None, sort=True):
     return corpus
 
 
-def datetime_to_yyyymmdd(x, *args, **kw):
-    return x.strftime('%Y-%m-%d')
-
-
-def epoch_to_yyyymmdd(x, *args, **kw):
-    return datetime_to_yyyymmdd(datetime.fromtimestamp(x))
-
-
-def datetime_to_seconds(x):
-    # returns None if x is not a datetime instance
-    try:
-        return int(time.mktime(x.timetuple()))
-    except AttributeError:
-        return None
-
-
-def mdate_formatter(num, pos=None):
-    return datetime_to_yyyymmdd(mdates.num2date(num))
-
-
-def datetime64_formatter(x, pos=None):
-    # matplotlib converts to floats, internally, so we have to convert back out
-    return datetime_to_yyyymmdd(x.astype('datetime64[s]').astype(datetime))
-
-
 def sample_table(feature_names, array, group_size=25):
     # Looking at the extremes
     ordering = array.argsort()
@@ -211,6 +188,7 @@ def bootstrap_model(X, y, n_iter=100, proportion=0.5):
         # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
         model = linear_model.LogisticRegression(penalty='l2', fit_intercept=False)
         model.fit(X[train_indices, :], y[train_indices])
+        # IPython.embed(); raise SystemExit(91)
         coefs[fold, :] = model.coef_.ravel()
     return coefs
 
@@ -228,23 +206,91 @@ def confidence():
     coefs_means = np.mean(coefs, axis=0)
     # coefs_variances = np.var(coefs, axis=0)
 
-    model = linear_model.LogisticRegression(penalty='l2')
-    model.coef_ = coefs_means
-    # probabilistic models, like LogReg, can give us log loss
-    pred_probabilities = model.predict_proba(X[labeled_indices])
+    '''
+    what a normally fitted model (but with fit_intercept = False) looks like:
+    model.coef_.shape
+    >>> (1, 1736)
+    model.classes_
+    >>> array([0, 3])
+    model.intercept_
+    >>> 0.0
+    '''
+    # model = linear_model.LogisticRegression(penalty='l2')
+    # model.coef_ = coefs_means.reshape(1, -1)
+    # model.intercept_ = 0.0
+    # model.classes_ = np.array([0, 3])
+    # model.set_params(classes_=np.array([0, 3]))
+    # nope, doesn't work like that.
+
+    test_X = X[labeled_indices, :]
+    test_y = y[labeled_indices]
+    classes = np.array([corpus.labels['Against'], corpus.labels['For']])
+
+    bootstrap_transformed = test_X.dot(coefs_means)
+    class_1_probabilities = npx.logistic(bootstrap_transformed)
+    bootstrap_pred_probabilities = np.column_stack((
+        1 - class_1_probabilities,
+        class_1_probabilities))
+    bootstrap_pred_y = classes[(bootstrap_transformed < 0).astype(int)]
+
+
+    # okay, we have a distribution like this:
+    # -15.76[                 ▁▁▁▁▁▁▂▃▅▆▇▉▇▆▄▃▂▁       ]13.81
+    # and we want to compare the tails with the norm, i.e., extremes
+    # like, if we exclude the middle 50%, does our accuracy increase?
+    # n = transformed.size
+    # middle_50_indices = np.abs(transformed).argsort()[:n/2]
+    # -4.2331864[ ▁▁ ▁▁▁▁▁▁▁▁▁▁▁▂▂▃▄▅▅▆▆▇▇▉]4.24129606
+    # ordered_indices = transformed.argsort()
+    # middle_50_indices = ordered_indices[range(n/4, 3*n/4)]
+    # 1.651[▄▃▄▄▅▅▄▅▆▅▅▆▆▆▆▇▇▆▇▇▇▇▆▉▆▇▆▆▅▅]5.5102
+    quantiles = np.percentile(bootstrap_transformed, range(0, 100, 25))
+    bins = np.digitize(bootstrap_transformed, quantiles)
+    # npx.table(bins - 1)
+    extreme_50_indices = (bins == 1) | (bins == 4)
+    # hist(transformed[extreme_50_indices])
+    # -15.762301[         ▁▁▁▁▂▂▂▂▄▁   ▉▇▄▂▁    ]13.8187724
+    middle_50_indices = (bins == 2) | (bins == 3)
+    # hist(transformed[middle_50_indices])
+    # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
+    # print (gold_y == bootstrap_pred_y).mean()
+    print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y)
+    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
+        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices])
+    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
+        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
+
+    biased_model = linear_model.LogisticRegression(
+        penalty='l2', fit_intercept=False)
+    biased_model.fit(test_X, test_y)
+    biased_pred_probabilities = biased_model.predict_proba(test_X)
+    # pred_probabilities has as many columns as there are classes
+    # and each row sums to 1
+    # biased_transformed = test_X.dot(biased_model.coef_.ravel())
+
+    # pred_y = model.predict(test_X)
 
     IPython.embed(); raise SystemExit(91)
 
-    results['log_loss'] = metrics.log_loss(test_y, pred_probabilities)
-    # linear coefficients give us a reasonable measure of sparsity
-    results['sparsity'] = np.mean(model.coef_.ravel() == 0)
+    print 'bootstrap LogLoss:', metrics.log_loss(test_y, bootstrap_pred_probabilities)
+    print 'biased LogLoss:', metrics.log_loss(test_y, biased_pred_probabilities)
+    # probabilistic models, like LogReg, can give us log loss
 
+    # Positive class probabilities are computed as
+    # 1. / (1. + np.exp(-self.decision_function(X)));
+
+    # def logit(x):
+    #     return np.log(x / (1 - x))
+    # probs = npx.logistic(biased_transformed)
+    # pred_probabilities_manual = np.column_stack((1 - probs, probs))
+
+    # linear coefficients give us a reasonable measure of sparsity
+    # results['sparsity'] = np.mean(model.coef_.ravel() == 0)
 
     # logger.info('explore_mispredictions')
     # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
     # logger.info('explore_uncertainty')
     # explore_uncertainty(test_X, test_y, model)
-
 
 
 def standard():

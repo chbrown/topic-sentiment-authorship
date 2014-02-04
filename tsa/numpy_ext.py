@@ -1,3 +1,4 @@
+import time
 import numpy as np
 
 
@@ -67,6 +68,15 @@ def exponential_decay(a, window=10, alpha=.5):
 #     return array[edgeindices(edgeitems)]
 
 
+def logit(x):
+    return np.log(x / (1 - x))
+
+
+def logistic(x):
+    # same as: return np.exp(x) / (1.0 + np.exp(x))
+    return 1.0 / (1.0 + np.exp(-x))
+
+
 def bootstrap(n, n_iter, proportion=1.0):
     '''
     Like cross_validation.Bootstrap, but ignoring the test set
@@ -130,6 +140,15 @@ def datetime64(x):
         return np.datetime64()
 
 datetime64 = np.vectorize(datetime64)
+
+
+def datetime_to_seconds(date):
+    # returns None if x is not a datetime instance
+    # otherwise returns integer epoch seconds
+    try:
+        return int(time.mktime(date.timetuple()))
+    except AttributeError:
+        return None
 
 
 def mean_accumulate(array, axis=0, dtype=None):
