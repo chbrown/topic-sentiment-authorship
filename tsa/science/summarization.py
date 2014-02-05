@@ -1,20 +1,10 @@
+from sklearn import metrics
+from viz import gloss, geom
 import numpy as np
-import scipy
-from viz.geom import hist
-from viz import terminal, gloss
+from tsa.science import numpy_ext as npx
+
 import logging
 logger = logging.getLogger(__name__)
-logger.level = 1
-
-
-from sklearn import metrics
-
-
-def hmean(xs):
-    if (xs > 0.0).all():
-        return scipy.stats.hmean(xs)
-    else:
-        return np.nan
 
 
 def metrics_summary(y_true, y_pred):
@@ -56,7 +46,7 @@ def explore_uncertainty(test_X, test_y, model):
         pred_probabilities = model.predict_proba(test_X)
         # predicts_proba returns N rows, each C-long, where C is the number of labels
         # hmean takes the harmonic mean of its arguments
-        pred_probabilities_hmean = np.apply_along_axis(hmean, 1, pred_probabilities)
+        pred_probabilities_hmean = np.apply_along_axis(npx.hmean, 1, pred_probabilities)
         pred_certainty = 1 - (2 * pred_probabilities_hmean)
         # pred_certainty now ranges between 0 and 1,
         #   a pred_certainty of 1 means the prediction probabilities were extreme,
@@ -69,11 +59,11 @@ def explore_uncertainty(test_X, test_y, model):
         pred_y = pred_probabilities.argmax(axis=1)
 
         print '*: certainty mean=%0.5f' % np.mean(pred_certainty)
-        hist(pred_certainty, range=(0, 1))
+        geom.hist(pred_certainty, range=(0, 1))
         print 'correct: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y == test_y])
-        hist(pred_certainty[pred_y == test_y], range=(0, 1))
+        geom.hist(pred_certainty[pred_y == test_y], range=(0, 1))
         print 'incorrect: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y != test_y])
-        hist(pred_certainty[pred_y != test_y], range=(0, 1))
+        geom.hist(pred_certainty[pred_y != test_y], range=(0, 1))
     else:
         logger.info('predict_proba is unavailable for this model: %s', model)
 

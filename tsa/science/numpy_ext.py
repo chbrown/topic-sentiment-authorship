@@ -1,3 +1,4 @@
+import scipy
 import time
 import numpy as np
 
@@ -66,6 +67,13 @@ def exponential_decay(a, window=10, alpha=.5):
 
 # def edges(array, edgeitems):
 #     return array[edgeindices(edgeitems)]
+
+
+def hmean(xs):
+    if (xs > 0.0).all():
+        return scipy.stats.hmean(xs)
+    else:
+        return np.nan
 
 
 def logit(x):

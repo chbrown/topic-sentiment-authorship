@@ -2,43 +2,28 @@ import IPython
 from collections import Counter
 
 import numpy as np
-np.set_printoptions(edgeitems=25, threshold=500, linewidth=1000)
 
 from viz import terminal
 from viz.geom import hist
 
 import pandas as pd
-pd.options.display.max_rows = 200
-pd.options.display.max_columns = 25
-pd.options.display.width = terminal.width()
-# import ggplot as gg
-
-# from lexicons import Liwc
 
 from sklearn import cross_validation, metrics
 from sklearn import linear_model
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 
 from tsa.lib import cache
-from tsa.scikit import explore_mispredictions, explore_uncertainty, margins, metrics_summary
-from tsa.lib.text import hashtags
 # import itertools
 # take ~ itertools.islice(read_tweets(), max)
 from tsa.lib.itertools import take, Quota
+from tsa.science.summarization import explore_mispredictions, explore_uncertainty, metrics_summary
+from tsa.science.text import hashtags
 
 import logging
 logger = logging.getLogger(__name__)
-logger.level = 1
 
 # logger.critical('sys.getdefaultencoding: %s', sys.getdefaultencoding())
 # logger.critical('sys.stdout.encoding: %s', sys.stdout.encoding)
-
-
-__main_func = None
-def main(func):
-    '''@main: runs the decorated function if this module is executed at the command line.'''
-    global __main_func
-    __main_func = func
 
 
 def read_tweets(ttv2_file):
@@ -97,7 +82,6 @@ def read_hashtags_as_labels(n_hashtags, per_hashtag):
             yield hashtag, text
 
 
-@main
 def given_labels():
     n_hashtags = 20
     per_hashtag = 1000
@@ -161,8 +145,3 @@ def explore_labels(label_names, dimension_names, coef_):
         hist(label_coef, range=(-2, 2))
         ranked_dimensions = label_coef.argsort()
         print 'dimensions of extreme coefficients:', dimension_names[ranked_dimensions[margins(5)]]
-
-
-if __name__ == '__main__' and __main_func is not None:
-    # call whatever was most recently decorated with @main
-    __main_func()

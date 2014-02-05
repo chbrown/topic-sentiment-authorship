@@ -27,7 +27,8 @@ setup(
     ],
     entry_points={
         'console_scripts': [
-            'hashtags=tsa.cli.hashtags:main'
+            'tsa-hashtags=tsa.cli.hashtags:main',
+            'tsa-analysis=tsa.cli.analysis:main',
         ],
     },
 )

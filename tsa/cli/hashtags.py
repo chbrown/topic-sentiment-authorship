@@ -1,5 +1,5 @@
 import sys
-from tsa.lib.text import hashtags
+from tsa.science.text import hashtags
 
 
 def main():

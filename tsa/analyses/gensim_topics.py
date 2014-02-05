@@ -3,22 +3,21 @@ from itertools import islice
 from collections import defaultdict
 
 import gensim
-from gensim.utils import simple_preprocess  # as tokenize
+from gensim.utils import simple_preprocess
 from tsa.lib import cache, tabular, itertools
 
 import logging
 logger = logging.getLogger(__name__)
 
 
-@cache.decorate('/tmp/gensim_topics-read_links-limit={limit}.pickle')
-def read_links(limit=None):
-    import tsa.data.sb5b.links
-    endpoints = tsa.data.sb5b.links.read(limit=limit)
-    return [endpoint.__json__() for endpoint in endpoints]
+def links_gensim(analysis_options):
+    @cache.decorate('/tmp/gensim_topics-read_links-limit={limit}.pickle')
+    def cached_read(limit=None):
+        import tsa.data.sb5b.links
+        endpoints = tsa.data.sb5b.links.read(limit=limit)
+        return [endpoint.__json__() for endpoint in endpoints]
 
-
-def links_gensim():
-    endpoints = read_links(limit=10000)
+    endpoints = cached_read(limit=10000)
 
     # the median length for the 6269 contentful endpoints currently in the database is 3217 characters
     maxlen = 10000
@@ -123,6 +122,3 @@ def links_gensim():
         print 'all', doc_topics
         print
         print endpoint['content']
-
-
-links_gensim()
