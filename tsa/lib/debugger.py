@@ -1,9 +1,12 @@
+'''
+Usage:
+
+from tsa.lib.debugger import shell
+shell(); raise SystemExit(99)
+'''
+
 import IPython
 from IPython.terminal.embed import InteractiveShellEmbed
-
-# use like:
-# from tsa.lib.debugger import shell
-# shell(); raise SystemExit(99)
 
 config = IPython.Config()
 config.InteractiveShell.confirm_exit = False

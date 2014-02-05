@@ -1,9 +1,12 @@
 import re
 import string
 
-stoplist = set(['a', 'and', 'for', 'of', 'to', 'in', 'the', '-'])
-stopwords = set(['a', 'and', 'for', 'of', 'to', 'in', 'the', '-', 'http'])
-stopwords |= set(['is', 'on', 'that', 'i', 'are', 'you', 'this', 'it', 'your', 'as', 'at', 'be', '>>'])
+determiners = set(['a', 'an', 'the'])
+conjunctions = set(['and', 'or', 'but'])
+prepositions = set(['for', 'to', 'in', 'at', 'as'])
+pronouns = set(['you', 'this', 'it', 'your'])
+punctuation = set(['-', 'http', '>>'])
+stopwords = determiners | conjunctions | prepositions | pronouns | punctuation | set(['be'])
 
 punctuation2space = string.maketrans('".,;:!?\'/()[]', '             ')
 
