@@ -45,7 +45,7 @@ def main():
     logging.root.level = level  # SILLY < 10 <= DEBUG
     # logger.critical('logger init: root.level = %s, logger.level = %s', logging.root.level, logger.level)
 
-    analyses[opts.analysis]()
+    analyses[opts.analysis](opts)
 
 
 if __name__ == '__main__':

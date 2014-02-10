@@ -184,7 +184,7 @@ def bootstrap_model(X, y, n_iter=100, proportion=0.5):
     return coefs
 
 
-def confidence():
+def confidence(analysis_options):
     corpus = read_sb5b_MulticlassCorpus(sort=True)
     X, y = corpus
     X = X.tocsr()
@@ -215,14 +215,17 @@ def confidence():
 
     test_X = X[labeled_indices, :]
     test_y = y[labeled_indices]
-    classes = np.array([corpus.labels['Against'], corpus.labels['For']])
+    classes = np.array([corpus.labels['For'], corpus.labels['Against']])
 
     bootstrap_transformed = test_X.dot(coefs_means)
     class_1_probabilities = npx.logistic(bootstrap_transformed)
     bootstrap_pred_probabilities = np.column_stack((
         1 - class_1_probabilities,
         class_1_probabilities))
-    bootstrap_pred_y = classes[(bootstrap_transformed < 0).astype(int)]
+    # bootstrap_pred_y_old = classes[(bootstrap_transformed > 0).astype(int)]
+    # we find the prediction by lining up the classes and picking one of them
+    # according to which column is the max
+    bootstrap_pred_y = classes[np.argmax(bootstrap_pred_probabilities, axis=1)]
 
 
     # okay, we have a distribution like this:
@@ -237,6 +240,7 @@ def confidence():
     # 1.651[▄▃▄▄▅▅▄▅▆▅▅▆▆▆▆▇▇▆▇▇▇▇▆▉▆▇▆▆▅▅]5.5102
     percentiles = np.percentile(bootstrap_transformed, range(0, 100, 25))
     bins = np.digitize(bootstrap_transformed, percentiles)
+    # set(bins) == {1, 2, 3, 4}
     # npx.table(bins - 1)
     extreme_50_indices = (bins == 1) | (bins == 4)
     # hist(transformed[extreme_50_indices])
@@ -255,13 +259,89 @@ def confidence():
         penalty='l2', fit_intercept=False)
     biased_model.fit(test_X, test_y)
     biased_pred_probabilities = biased_model.predict_proba(test_X)
+    # biased_pred_y = biased_model.predict(test_X)
+    biased_pred_y = classes[np.argmax(biased_pred_probabilities, axis=1)]
     # pred_probabilities has as many columns as there are classes
     # and each row sums to 1
-    # biased_transformed = test_X.dot(biased_model.coef_.ravel())
-
+    biased_transformed = test_X.dot(biased_model.coef_.ravel())
     # pred_y = model.predict(test_X)
 
+    hist(biased_transformed)
+    # we want to get at more than just a 50/50 extreme/middle split
+    # order goes from most extreme to least
+
+    # percentiles = np.percentile(biased_transformed, range(0, 100, 25))
+    # bins = np.digitize(biased_transformed, percentiles)
+    # extreme_50_indices = (bins == 1) | (bins == 4)
+    # middle_50_indices = (bins == 2) | (bins == 3)
+    print 'Biased overall accuracy: %.4f' % metrics.accuracy_score(test_y, biased_pred_y)
+    # np.linspace(0, 10, )
+    # for i in range:
     IPython.embed(); raise SystemExit(91)
+
+
+
+
+    bounds = npx.bounds(biased_transformed)
+
+    nbins = 10
+    print 'Bin from most extreme (0) to least extreme (%d)' % (nbins - 1)
+    order = np.argsort(-np.abs(biased_transformed))
+    # print 'Bin from lowest (0) to highest (%d)' % (nbins - 1)
+    # order = np.argsort(biased_transformed)
+    bins = nbins * npx.indices(order) / order.size
+    for bin_i in set(bins):
+        indices = order[bins == bin_i]
+        hist(biased_transformed[indices], bounds)
+        transform_mean = biased_transformed[indices].mean()
+        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
+            bin_i, indices.size, transform_mean,
+            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
+
+
+
+    percentiles = np.percentile(biased_transformed, range(0, 100, 25))
+    bins = np.digitize(biased_transformed, percentiles)
+
+    for bin_i in range(1, 5):
+        indices = npx.indices(biased_transformed)[bins == bin_i]
+        hist(biased_transformed[indices], bounds)
+        transform_mean = biased_transformed[indices].mean()
+        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
+            bin_i, indices.size, transform_mean,
+            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
+
+    extreme_50_indices = (bins == 1) | (bins == 4)
+    middle_50_indices = (bins == 2) | (bins == 3)
+    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
+        test_y[middle_50_indices], biased_pred_y[middle_50_indices])
+    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
+        test_y[extreme_50_indices], biased_pred_y[extreme_50_indices])
+
+
+
+
+
+    # hist(transformed[middle_50_indices])
+    # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
+    # print (gold_y == bootstrap_pred_y).mean()
+    print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y)
+    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
+        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices])
+    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
+        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
+
+
+
+    # bokeh quickstart
+    import bokeh.plotting as bp
+    bp.output_server('tsa')
+    # bp.output_file('boring.html')
+    x = np.linspace(-2*np.pi, 2*np.pi, 100)
+    y = np.cos(x)
+    bp.scatter(x, y, marker="square", color="blue")
+    bp.show()
+
 
     print 'bootstrap LogLoss:', metrics.log_loss(test_y, bootstrap_pred_probabilities)
     print 'biased LogLoss:', metrics.log_loss(test_y, biased_pred_probabilities)
@@ -284,7 +364,7 @@ def confidence():
     # explore_uncertainty(test_X, test_y, model)
 
 
-def standard():
+def standard(analysis_options):
     corpus = read_sb5b_MulticlassCorpus(sort=True)
     X, y = corpus
     # ya get some weird things if you leave X in CSC format,

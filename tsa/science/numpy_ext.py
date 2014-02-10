@@ -99,6 +99,11 @@ def bootstrap(n, n_iter, proportion=1.0):
         yield np.random.choice(n, size=size, replace=True), []
 
 
+def indices(array):
+    # np.indices is weird.
+    return np.arange(array.size).reshape(array.shape)
+
+
 def bool_mask_to_indices(array):
     # return np.arange(array.size)[array]
     return np.where(array)[0]
