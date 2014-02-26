@@ -3,10 +3,12 @@ import sys
 logging_formats = {
     'dated': '%(levelname)s\t%(asctime)s\t%(message)s',
     'interactive': '%(levelname)-8s %(message)s',
-    'debugging': '%(levelname)-8s %(message)s (%(filename)s:%(lineno)d)'
+    'debugging': '%(levelname)-8s %(message)s (%(filename)s:%(lineno)d)',
+    'original': '%(levelname)-8s %(asctime)14s (%(name)s): %(message)s',
 }
 
 import logging
+logging.captureWarnings(True)
 logging.basicConfig(format=logging_formats['interactive'], level=logging.INFO)
 
 
@@ -55,3 +57,5 @@ def stderrn(bytes=''):
     sys.stderr.write(bytes)
     sys.stderr.write('\n')
     sys.stderr.flush()
+
+# logging.root.info('%s initialized', __file__)

@@ -1,4 +1,20 @@
-from datetime import datetime
+from datetime import datetime, timedelta, tzinfo
+
+
+class UTC(tzinfo):
+    def tzname(self, dt):
+        return 'UTC'
+
+    def utcoffset(self, dt):
+        return timedelta(0)
+
+    def dst(self, dt):
+        return timedelta(0)
+
+    def __repr__(self):
+        return 'UTC[%#x]' % id(utc)
+
+utc = UTC()
 
 
 def datetime_to_yyyymmdd(date, *args, **kw):

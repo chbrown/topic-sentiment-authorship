@@ -1,153 +1,33 @@
 # -*- coding: utf-8 -*-
+# universals:
 import IPython
-import os
+import numpy as np
+from tsa.science import numpy_ext as npx
+
 from datetime import datetime
 
-from tsa import logging
-import viz
 from viz.format import quantiles
 from viz.geom import hist
 
-# logging.basicConfig(format='%(levelname)-8s %(asctime)14s (%(name)s): %(message)s', level=17)
-# logging.WARNING = 30
-logging.captureWarnings(True)
-logger = logging.getLogger(__name__)
-
-import numpy as np
-import scipy
-from scipy import sparse
-import pandas as pd
-
-from collections import Counter
-from sklearn import cross_validation
 from sklearn import metrics
+from sklearn import cross_validation
 from sklearn import linear_model
-from sklearn import naive_bayes
-from sklearn import neighbors
-from sklearn import svm
-# from sklearn import qda
-from sklearn import ensemble
-# from sklearn import cluster
-from sklearn import decomposition
-# from sklearn import neural_network
+# from collections import Counter
 # from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
 # from sklearn.feature_selection import SelectPercentile, SelectKBest
-from sklearn.feature_selection import chi2, f_classif, f_regression
+# from sklearn.feature_selection import chi2, f_classif, f_regression
 
-import gensim
+from tsa import logging
+logger = logging.getLogger(__name__)
 
-from tsa.science import numpy_ext as npx
-from tsa.science import features
-from tsa.science.corpora import MulticlassCorpus
-from tsa.lib import cache, tabular, itertools
+from tsa.lib import tabular, itertools
 from tsa.lib.timer import Timer
-from tsa.science.summarization import metrics_dict, explore_topics  # explore_mispredictions, explore_uncertainty
+from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
 
+from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 
-import matplotlib.cm as colormap
-import matplotlib.pyplot as plt
-import matplotlib.dates as mdates
-import matplotlib.ticker as ticker
-plt.rcParams['interactive'] = True
-plt.rcParams['axes.grid'] = True
-
-qmargins = [0, 5, 10, 50, 90, 95, 100]
-
-# plt.rcParams['ps.useafm'] = True
-# plt.rcParams['pdf.use14corefonts'] = True
-# plt.rcParams['text.usetex'] = True
-
-def fig_path(name, index=0):
-    dirpath = os.path.expanduser('~/Dropbox/ut/qp/figures-qp-2')
-    base, ext = os.path.splitext(name)
-    filename = base + ('-%02d' % index if index > 0 else '') + ext
-    filepath = os.path.join(dirpath, filename)
-    if os.path.exists(filepath):
-        return fig_path(name, index + 1)
-    logger.info('Using filepath: %r', filepath)
-    return filepath
-
-
-def clear():
-    plt.cla()
-    plt.axes(aspect='auto')
-    # plt.axis('tight')
-    # plt.tight_layout()
-    plt.margins(0.025, tight=True)
-
-
-def styles():
-    # can distinguish about six different colors from rainbox
-    colors = colormap.rainbow(np.linspace(1, 0, 6))
-    # and a few different linestyles
-    linestyles = ['-', ':', '--', '-.']
-    # and linewidth
-    linewidths = [1, 2, 3]
-    for linewidth in linewidths:
-        for linestyle in linestyles:
-            for color in colors:
-                yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
-
-
-def binned_timeseries(times, values, time_units_per_bin=1, time_unit='D', statistic='mean'):
-    first, last = npx.bounds(times)
-    bins = npx.datespace(first, last, time_units_per_bin, time_unit).astype('datetime64[s]')
-    # valid "statistic" strings: mean, median, count, sum
-    result = scipy.stats.binned_statistic(times.astype(float), values,
-        statistic=statistic, bins=bins.astype(float))
-    bin_statistics, bin_edges, bin_number = result
-    # the resulting statistic is 1 shorter than the bins
-    # return the left edges of the bins, and the resulting statistics
-    return bins[:-1], bin_statistics
-
-
-def read_sb5b_MulticlassCorpus(limits=None, sort=True):
-    # @cache.decorate('/tmp/tsa-corpora-sb5-tweets-min={per_label}.pickle')
-    # look into caching with np.load and/or stdlib's pickle
-    # http://docs.scipy.org/doc/numpy/reference/generated/numpy.load.html
-    @cache.decorate('/tmp/tsa-corpora-sb5-tweets-all.pickle')
-    def cached_read():
-        # cached_read is cached, so it will return a list, not an iterator, even if it looks like a generator
-        import tsa.data.sb5b.tweets
-        for tweet in tsa.data.sb5b.tweets.read():
-            # hack: filter out invalid data here
-            if isinstance(tweet['TweetTime'], datetime):
-                yield tweet
-            else:
-                # there's just one invalid tweet - I'm pretty it's the header row
-                logger.debug('Ignoring invalid tweet: %r', tweet)
-
-    tweets = cached_read()
-
-    # do label filtering AFTER caching
-    # if limits is set, it'll be something like: dict(Against=2500, For=2500)
-    # if you wanted to just select certain labels, you could use something like dict(Against=1e9, For=1e9)
-    if limits is not None:
-        quota = itertools.Quota(**limits)
-        tweets = list(quota.filter(tweets, keyfunc=lambda tweet: tweet['Label']))
-
-    # FWIW, sorted always returns a list
-    if sort:
-        tweets = sorted(tweets, key=lambda tweet: tweet['TweetTime'])
-
-    # tweets is now what we want to limit it to
-    y_raw = np.array([tweet['Label'] for tweet in tweets])
-    corpus = MulticlassCorpus(y_raw)
-    corpus.tweets = tweets
-
-    times = [tweet['TweetTime'] for tweet in tweets]
-    corpus.times = np.array(times).astype('datetime64[s]')
-
-    documents = [tweet['Tweet'] for tweet in tweets]
-    corpus.apply_features(documents, features.ngrams,
-        ngram_max=1, min_df=0.001, max_df=0.95)
-    logger.debug('MulticlassCorpus created: %s', corpus.X.shape)
-    # this corpus has the following additional attributes:
-    #   tweets
-    #   times
-    return corpus
 
 
 def sample_table(feature_names, array, group_size=25):
@@ -170,418 +50,24 @@ def sample_table(feature_names, array, group_size=25):
         printer.write(row_dict)
 
 
-def bootstrap_model(X, y, n_iter=100, proportion=0.5):
-    # each row in coefs represents the results from a single bootstrap run
-    coefs = np.zeros((n_iter, X.shape[1]))
-    folds = npx.bootstrap(y.size, n_iter=n_iter, proportion=proportion)
-    for fold, (train_indices, _) in itertools.sig_enumerate(folds, logger=logger):
-        # repeats = sum(1 for _, count in Counter(train_indices).items() if count > 1)
-        # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
-        model = linear_model.LogisticRegression(penalty='l2', fit_intercept=False)
-        model.fit(X[train_indices, :], y[train_indices])
-        # IPython.embed(); raise SystemExit(91)
-        coefs[fold, :] = model.coef_.ravel()
-    return coefs
 
-
-def confidence(analysis_options):
-    corpus = read_sb5b_MulticlassCorpus(sort=True)
-    X, y = corpus
-    X = X.tocsr()
-
-    labeled_mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
-    labeled_indices = npx.bool_mask_to_indices(labeled_mask)
-    n_iter = 100
-    coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
-        n_iter=n_iter, proportion=0.5)
-    coefs_means = np.mean(coefs, axis=0)
-    # coefs_variances = np.var(coefs, axis=0)
-
-    '''
-    what a normally fitted model (but with fit_intercept = False) looks like:
-    model.coef_.shape
-    >>> (1, 1736)
-    model.classes_
-    >>> array([0, 3])
-    model.intercept_
-    >>> 0.0
-    '''
-    # model = linear_model.LogisticRegression(penalty='l2')
-    # model.coef_ = coefs_means.reshape(1, -1)
-    # model.intercept_ = 0.0
-    # model.classes_ = np.array([0, 3])
-    # model.set_params(classes_=np.array([0, 3]))
-    # nope, doesn't work like that.
-
-    test_X = X[labeled_indices, :]
-    test_y = y[labeled_indices]
-    classes = np.array([corpus.labels['For'], corpus.labels['Against']])
-
-    bootstrap_transformed = test_X.dot(coefs_means)
-    class_1_probabilities = npx.logistic(bootstrap_transformed)
-    bootstrap_pred_probabilities = np.column_stack((
-        1 - class_1_probabilities,
-        class_1_probabilities))
-    # bootstrap_pred_y_old = classes[(bootstrap_transformed > 0).astype(int)]
-    # we find the prediction by lining up the classes and picking one of them
-    # according to which column is the max
-    bootstrap_pred_y = classes[np.argmax(bootstrap_pred_probabilities, axis=1)]
-
-
-    # okay, we have a distribution like this:
-    # -15.76[                 ▁▁▁▁▁▁▂▃▅▆▇▉▇▆▄▃▂▁       ]13.81
-    # and we want to compare the tails with the norm, i.e., extremes
-    # like, if we exclude the middle 50%, does our accuracy increase?
-    # n = transformed.size
-    # middle_50_indices = np.abs(transformed).argsort()[:n/2]
-    # -4.2331864[ ▁▁ ▁▁▁▁▁▁▁▁▁▁▁▂▂▃▄▅▅▆▆▇▇▉]4.24129606
-    # ordered_indices = transformed.argsort()
-    # middle_50_indices = ordered_indices[range(n/4, 3*n/4)]
-    # 1.651[▄▃▄▄▅▅▄▅▆▅▅▆▆▆▆▇▇▆▇▇▇▇▆▉▆▇▆▆▅▅]5.5102
-    percentiles = np.percentile(bootstrap_transformed, range(0, 100, 25))
-    bins = np.digitize(bootstrap_transformed, percentiles)
-    # set(bins) == {1, 2, 3, 4}
-    # npx.table(bins - 1)
-    extreme_50_indices = (bins == 1) | (bins == 4)
-    # hist(transformed[extreme_50_indices])
-    # -15.762301[         ▁▁▁▁▂▂▂▂▄▁   ▉▇▄▂▁    ]13.8187724
-    middle_50_indices = (bins == 2) | (bins == 3)
-    # hist(transformed[middle_50_indices])
-    # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
-    # print (gold_y == bootstrap_pred_y).mean()
-    print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y)
-    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
-        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices])
-    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
-        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
-
-    biased_model = linear_model.LogisticRegression(
-        penalty='l2', fit_intercept=False)
-    biased_model.fit(test_X, test_y)
-    biased_pred_probabilities = biased_model.predict_proba(test_X)
-    # biased_pred_y = biased_model.predict(test_X)
-    biased_pred_y = classes[np.argmax(biased_pred_probabilities, axis=1)]
-    # pred_probabilities has as many columns as there are classes
-    # and each row sums to 1
-    biased_transformed = test_X.dot(biased_model.coef_.ravel())
-    # pred_y = model.predict(test_X)
-
-    hist(biased_transformed)
-    # we want to get at more than just a 50/50 extreme/middle split
-    # order goes from most extreme to least
-
-    # percentiles = np.percentile(biased_transformed, range(0, 100, 25))
-    # bins = np.digitize(biased_transformed, percentiles)
-    # extreme_50_indices = (bins == 1) | (bins == 4)
-    # middle_50_indices = (bins == 2) | (bins == 3)
-    print 'Biased overall accuracy: %.4f' % metrics.accuracy_score(test_y, biased_pred_y)
-    # np.linspace(0, 10, )
-    # for i in range:
-    IPython.embed(); raise SystemExit(91)
-
-
-
-
-    bounds = npx.bounds(biased_transformed)
-
-    nbins = 10
-    print 'Bin from most extreme (0) to least extreme (%d)' % (nbins - 1)
-    order = np.argsort(-np.abs(biased_transformed))
-    # print 'Bin from lowest (0) to highest (%d)' % (nbins - 1)
-    # order = np.argsort(biased_transformed)
-    bins = nbins * npx.indices(order) / order.size
-    for bin_i in set(bins):
-        indices = order[bins == bin_i]
-        hist(biased_transformed[indices], bounds)
-        transform_mean = biased_transformed[indices].mean()
-        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
-            bin_i, indices.size, transform_mean,
-            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
-
-
-
-    percentiles = np.percentile(biased_transformed, range(0, 100, 25))
-    bins = np.digitize(biased_transformed, percentiles)
-
-    for bin_i in range(1, 5):
-        indices = npx.indices(biased_transformed)[bins == bin_i]
-        hist(biased_transformed[indices], bounds)
-        transform_mean = biased_transformed[indices].mean()
-        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
-            bin_i, indices.size, transform_mean,
-            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
-
-    extreme_50_indices = (bins == 1) | (bins == 4)
-    middle_50_indices = (bins == 2) | (bins == 3)
-    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
-        test_y[middle_50_indices], biased_pred_y[middle_50_indices])
-    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
-        test_y[extreme_50_indices], biased_pred_y[extreme_50_indices])
-
-
-
-
-
-    # hist(transformed[middle_50_indices])
-    # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
-    # print (gold_y == bootstrap_pred_y).mean()
-    print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y)
-    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
-        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices])
-    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
-        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
-
-
-
-    # bokeh quickstart
-    import bokeh.plotting as bp
-    bp.output_server('tsa')
-    # bp.output_file('boring.html')
-    x = np.linspace(-2*np.pi, 2*np.pi, 100)
-    y = np.cos(x)
-    bp.scatter(x, y, marker="square", color="blue")
-    bp.show()
-
-
-    print 'bootstrap LogLoss:', metrics.log_loss(test_y, bootstrap_pred_probabilities)
-    print 'biased LogLoss:', metrics.log_loss(test_y, biased_pred_probabilities)
-    # probabilistic models, like LogReg, can give us log loss
-
-    # Positive class probabilities are computed as
-    # 1. / (1. + np.exp(-self.decision_function(X)));
-
-    # def logit(x):
-    #     return np.log(x / (1 - x))
-    # probs = npx.logistic(biased_transformed)
-    # pred_probabilities_manual = np.column_stack((1 - probs, probs))
-
-    # linear coefficients give us a reasonable measure of sparsity
-    # results['sparsity'] = np.mean(model.coef_.ravel() == 0)
-
-    # logger.info('explore_mispredictions')
-    # explore_mispredictions(test_X, test_y, model, test_indices, label_names, corpus_strings)
-    # logger.info('explore_uncertainty')
-    # explore_uncertainty(test_X, test_y, model)
-
-
-def standard(analysis_options):
-    corpus = read_sb5b_MulticlassCorpus(sort=True)
-    X, y = corpus
-    # ya get some weird things if you leave X in CSC format,
-    # particularly if you index it with a boolmask
-    X = X.tocsr()
-
-    labeled_mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
-    labeled_indices = npx.bool_mask_to_indices(labeled_mask)
-    n_iter = 100
-    coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
-        n_iter=n_iter, proportion=0.5)
-    coefs_means = np.mean(coefs, axis=0)
-    coefs_variances = np.var(coefs, axis=0)
-
-    print 'coefs_means'
-    hist(coefs_means)
-    quantiles(coefs_means, qs=qmargins)
-    # sample_table(coefs_means, group_size=25)
-
-    print 'coefs_variances'
-    hist(coefs_variances)
-    quantiles(coefs_variances, qs=qmargins)
-    # sample_table(coefs_variances, group_size=25)
-
-    plt.scatter(coefs_means, coefs_variances, alpha=0.2)
-    plt.title('Coefficient statistics after %d-iteration bootstrap' % n_iter)
-    plt.xlabel('means')
-    plt.ylabel('variances')
-
-    # model = linear_model.RandomizedLogisticRegression()
-    # model.fit(X[labeled_indices], y[labeled_indices])
-
-    IPython.embed(); raise SystemExit(91)
-
-    random_lr_coefs = model.coef_.ravel()
-
-    # plt.scatter(
-
-    # folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    # for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
-    #     test_X, test_y = X[test_indices], y[test_indices]
-    #     train_X, train_y = X[train_indices], y[train_indices]
-    #     model.fit(train_X, train_y)
-
-
-    # cumulative_coefs_means = npx.mean_accumulate(coefs, axis=0)
-    # cumulative_coefs_variances = npx.var_accumulate(coefs, axis=0)
-    # cumulative_coefs_variances.shape = (1000, 2009)
-
-    # dimension reduction
-    # f_regression help:
-    #   http://stackoverflow.com/questions/15484011/scikit-learn-feature-selection-for-regression-data
-    # other nice ML variable selection help:
-    #   http://www.quora.com/What-are-some-feature-selection-methods-for-SVMs
-    #   http://www.quora.com/What-are-some-feature-selection-methods
-    ## train_chi2_stats, train_chi2_pval = chi2(train_X, train_y)
-    ## train_classif_F, train_classif_pval = f_classif(train_X, train_y)
-    # train_F, train_pval = f_regression(X[train_indices, :], y[train_indices])
-    # train_pval.shape = (4729,)
-    # ranked_dimensions = np.argsort(train_pval)
-    # ranked_names = dimension_names[np.argsort(train_pval)]
-
-    # balance training set:
-    # per_label = 2500
-    # against_indices = npx.bool_mask_to_indices(y == label_ids['Against'])
-    # against_selection = np.random.choice(against_indices, per_label, replace=False)
-    # for_indices = npx.bool_mask_to_indices(y == label_ids['For'])
-    # for_selection = np.random.choice(for_indices, per_label, replace=False)
-    # balanced_labels_indices = np.concatenate((against_selection, for_selection))
-
-    # extreme_features = set(np.abs(coefs_means).argsort()[::-1][:50]) | set(coefs_variances.argsort()[::-1][:50])
-    # for feature in extreme_features:
-    #     plt.annotate(corpus.feature_names[feature], xy=(coefs_means[feature], coefs_variances[feature]))
-
-    # plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
-
-    # model.intercept_
-
-    IPython.embed(); raise SystemExit(111)
-
-    # minimum, maximum = npx.bounds(times)
-    # npx.datespace(minimum, maximum, 7, 'D')
-
-    features = np.arange(X.shape[1])
-    bin_variance = np.zeros(X.shape[1])
-    print 'when binned by day, what features have the greatest variance?'
-    for feature in features:
-        counts = X[:, feature].toarray().ravel()
-        bin_edges, bin_values = binned_timeseries(times, counts, 7, 'D')
-        bin_variance[feature] = np.nanvar(bin_values)
-
-    hist(bin_variance)
-
-    # X.sum(axis=0)
-    # totals is the total number of times each word has been seen in the corpus
-    totals = np.sum(X.toarray(), axis=0).ravel()
-    order = totals.argsort()[::-1]
-
-    # plt.hist(totals)
-    # from bokeh.plotting import *
-
-    plt.cla()
-    plt.scatter(totals, coefs_means, alpha=0.3)
-    selection = order[:10]
-    print 'tops:', corpus.feature_names[selection]
-
-    # convention: order is most extreme first
-    order = np.abs(coefs_means).argsort()[::-1]
-    # order = np.abs(coefs_variances).argsort()[::-1]
-    # most_extreme_features = order[-10:]
-
-    selection = order[:12]
-    # selection = order[-10:]
-    print 'selected features:', corpus.feature_names[selection]
-
-
-    # plt.plot(a)
-    # plt.plot(smooth(a, 20, .75))
-    # .reshape((1,-1))
-    window = 7
-    alpha = .5
-
-    def smooth_days(corpus, selection, window=7, alpha=.5, time_units_per_bin=1, time_unit='D'):
-        style_iter = styles()
-        plt.cla()
-        axes = plt.gca()
-        for feature in selection:
-            # toarray() because X is sparse, ravel to make it one-dimension
-            counts = corpus.X[:, feature].toarray().ravel()
-            bin_edges, bin_values = binned_timeseries(corpus.times, counts, time_units_per_bin, time_unit)
-            smoothed_bin_values = npx.exponential_decay(bin_values, window=window, alpha=alpha)
-            style_kwargs = style_iter.next()
-            # plt.plot(bin_edges, bin_values,
-            #     drawstyle='steps-post', **style_kwargs)
-            plt.plot(bin_edges, smoothed_bin_values, label=corpus.feature_names[feature], **style_kwargs)
-        axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime64_formatter))
-        plt.legend(loc='top left')
-
-
-    # , bbox_to_anchor=(1, 0.5)
-    # plt.legend(bbox_to_anchor=(0, 1))
-    # box = axes.get_position()
-    # axes.set_position([box.x0, box.y0, box.width * 0.8, box.height])
-    smooth_days(corpus, selection, 7, .5, 1, 'D')
-    smooth_days(corpus, selection, 1, 1, 7, 'D')
-    plt.vlines(np.array(npx.bounds(corpus.times[labeled_indices])).astype(float), *plt.ylim())
-
-    # find the dimensions of the least and most variance
-    indices = npx.edge_indices(ordering, 25)
-    # indices = np.random.choice(ordering.size, 50)
-    subset = cumulative_coefs_variances[:, ordering[indices]]
-    # subset.shape = 40 columns, K=1000 rows
-    plt.plot(subset)
-    plt.title('Coefficient variances converging across a %d-iteration bootstrap\n(25 highest and 25 lowest variances)' % subset.shape[0])
-    plt.ylim(-0.05, 0.375)
-    plt.savefig(fig_path('cumulative-variances-%d-bootstrap.pdf' % subset.shape[0]))
-
-    plt.cla()
-    ordering = coefs_means.argsort()
-    middle = ordering.size // 2
-    indices = npx.edge_and_median_indices(0, 25) + range(middle - 12, middle + 13) + range(-25, 0)
-    subset = cumulative_coefs_means[:, ordering[indices]]
-    plt.plot(subset)
-    plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])
-    plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
-
-
-    # Look into cross_validation.StratifiedKFold
-    # data_train, data_test, labels_train, labels_test = cross_validation.train_test_split(data, labels, test_size=0.20)
-
-            # logger.info('Overall %s; log loss: %0.4f; sparsity: %0.4f')
-            # logger.info('k=%d, proportion=%.2f; %d train, %d test, results: %s',
-                # k, proportion, len(train_indices_subset),, results)
-
-            # print 'Accuracy: %0.5f, F1: %0.5f' % (
-            #     metrics.accuracy_score(test_y, pred_y),
-            #     metrics.f1_score(test_y, pred_y))
-            # print 'confusion:\n', metrics.confusion_matrix(test_y, pred_y)
-            # print 'report:\n', metrics.classification_report(test_y, pred_y, target_names=label_names)
-
-        # train_F_hmean = scipy.stats.hmean(train_F[train_F > 0])
-        # print 'train_F_hmean', train_F_hmean
-        # neg_train_pval_hmean = scipy.stats.hmean(1 - train_pval[train_pval > 0])
-        # print '-train_pval_hmean', neg_train_pval_hmean
-
-        # print corpus_types[np.argsort(model.coef_)]
-        # the mean of a list of booleans returns the percentage of trues
-        # logger.info('Sparsity: {sparsity:.2%}'.format(sparsity=sparsity))
-
-        # train_X.shape shrinkage:: (4500, 18884) -> (4500, 100)
-        # train_X = train_X[:, ranked_dimensions[:top_k]]
-        # train_X.shape shrinkage: (500, 18884) -> (500, 100)
-        # test_X = test_X[:, ranked_dimensions[:top_k]]
-
-        # train_X, test_X = X[train_indices], X[test_indices]
-        # train_y, test_y = y[train_indices], y[test_indices]
-
-        # nice L1 vs. L2 norm tutorial: http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
-
-        # if k == 9:
-        #     print '!!! randomizing predictions'
-        #     pred_y = [random.choice((0, 1)) for _ in pred_y]
-
-def perceptron():
+def perceptron(analysis_options):
     # corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=2500, Against=2500))
-    corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=1e9, Against=1e9))
+    corpus = read_sb5b_MulticlassCorpus()
     X, y = corpus
-    # make X sliceable:
-    X = X.tocsr()
-    print 'label table:', dict(npx.table(y, corpus.classes))
+    X = X.tocsr()  # make X sliceable
+    logger.info('label table: %r', dict(npx.table(y, corpus.classes)))
+
+    mask = (y == corpus.labels['Against']) | (y == corpus.labels['For'])
+    # npx.bool_mask_to_indices(labeled_mask)
+    labeled_indices = npx.indices(y)[mask]
+    X, y = X[labeled_indices], y[labeled_indices]
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
     for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
         # Percepton penalty : None, l2 or l1 or elasticnet
-        # model = linear_model.Perceptron(penalty='l1')
-        # LogisticRegression
-        model = linear_model.LogisticRegression(penalty='l2')
+        model = linear_model.Perceptron(penalty='l1')
+        # model = linear_model.LogisticRegression(penalty='l2')
         test_X, test_y = X[test_indices], y[test_indices]
         train_X, train_y = X[train_indices], y[train_indices]
         model.fit(train_X, train_y)
@@ -597,86 +83,40 @@ def perceptron():
         print 'sparsity (fraction of coef == 0)', (coefs == 0).mean()
         print
 
-    IPython.embed(); raise SystemExit(101)
 
 
+def simple(analysis_options):
+    corpus = read_sb5b_MulticlassCorpus(labeled_only=True, ngram_max=2, min_df=1, max_df=1.0)
 
-def to_gensim(array):
-    # convert a csr corpus to what gensim wants: a list of list of tuples
-    mat = sparse.csr_matrix(array)
-    return [zip(row.indices, row.data) for row in mat]
+    from sklearn import naive_bayes
 
+    for_mask = corpus.y == corpus.labels['For']
+    against_mask = corpus.y == corpus.labels['Against']
+    selected_indices = npx.bool_mask_to_indices(for_mask | against_mask)
+    # selected_indices = npx.balance(for_mask, against_mask)
+    X = corpus.X[selected_indices]
+    y = corpus.y[selected_indices]
 
-def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
-    if tfidf_transform:
-        if sparse.issparse(X):
-            X = X.toarray()
-        X = npx.tfidf(X)
+    X = X.tocsr()  # make X sliceable
+    print 'X =', X.shape, 'y =', y.shape
 
-    corpus = to_gensim(X)
+    accuracies = []
+    folds = cross_validation.KFold(y.size, 10, shuffle=True)
+    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+        # Percepton penalty : None, l2 or l1 or elasticnet
+        test_X, test_y = X[test_indices], y[test_indices]
+        train_X, train_y = X[train_indices], y[train_indices]
 
-    vocab = dict(enumerate(dimension_names))
-    topic_model = gensim.models.LdaModel(corpus,
-        id2word=vocab, num_topics=num_topics, passes=1)
-    return topic_model
-
-
-def topics(num_topics=5):
-    corpus = ClassificationCorpus.sb5_equal()
-    X, y, label_names, label_ids, dimension_names = corpus
-    # make X sliceable:
-    # X = X.tocsr()
-    X = X.toarray()
-
-    logger.debug('topics(): X.shape = %s, y.shape = %s', X.shape, y.shape)
-    # X.todok().items() returns a list of ((row, col), value) tuples
-
-    build_topic_model
-    for label_i, label_name in enumerate(label_names):
-        sub_X = X[y == label_i, :]
-
-        colsums = sub_X.sum(axis=0)
-        # sub_dims is a list of the indices of columns that have nonzero occurrences:
-        sub_dims = colsums.nonzero()[0]
-
-        topic_model = build_topic_model(sub_X[:, sub_dims], dimension_names[sub_dims],
-            tfidf_transform=True, num_topics=num_topics)
-
-        print '---'
-        print label_i, ':', label_name
-        explore_topics(topic_model)
-
-
-def explore_coefs(coefs):
-    # sample_cov = np.cov(coefs) # is this anything?
-    coefs_cov = np.cov(coefs, rowvar=0)
-    plt.imshow(coefs_cov)
-    # w, v = np.linalg.eig(coefs_cov)
-    u, s, v = np.linalg.svd(coefs_cov)
-
-    # reorder least-to-biggest
-    rowsums = np.sum(coefs_cov, axis=0)
-    # colsums = np.sum(coefs_cov, axis=1)
-    # rowsums == colsums, obviously
-    ordering = np.argsort(rowsums)
-    coefs_cov_reordered = coefs_cov[ordering, :][:, ordering]
-    # coefs_cov_2 = coefs_cov[:, :]
-    log_coefs_cov_reordered = np.log(coefs_cov_reordered)
-    plt.imshow(log_coefs_cov_reordered)
-    plt.imshow(log_coefs_cov_reordered[0:500, 0:500])
-
-    coefs_corrcoef = np.corrcoef(coefs, rowvar=0)
-
-    ordering = np.argsort(np.sum(coefs_corrcoef, axis=0))
-    coefs_corrcoef_reordered = coefs_corrcoef[ordering, :][:, ordering]
-    plt.imshow(coefs_corrcoef_reordered)
-
-    # dimension_names[ordering]
-    from scipy.cluster.hierarchy import linkage, dendrogram
-    # Y = scipy.spatial.distance.pdist(X, 'correlation')  # not 'seuclidean'
-    Z = linkage(X, 'single', 'correlation')
-    dendrogram(Z, color_threshold=0)
-    # sklearn.cluster.Ward
+        model = linear_model.LogisticRegression(penalty='l2')
+        # model = linear_model.LogisticRegression(penalty='l1')
+        # model = linear_model.LogisticRegression(penalty='l2', dual=True)
+        # model = naive_bayes.MultinomialNB()
+        model.fit(train_X, train_y)
+        pred_y = model.predict(test_X)
+        accuracy = metrics.accuracy_score(test_y, pred_y)
+        accuracies.append(accuracy)
+        print '[%d] accuracy = %.4f' % (fold_index, accuracy)
+    print 'mean accuracy = %.4f' % (np.mean(accuracies))
 
 
 def label_proportions():
@@ -734,7 +174,6 @@ def label_proportions():
     # epochs = [datetime_to_seconds(tweet['TweetTime']) for tweet in corpus.tweets]
 
     # np.empty(y.size)
-
 
     train_indices, train_mask = all_labels_indices, all_labels_mask
     # fig.autofmt_xdate()
@@ -851,7 +290,6 @@ def explore_texts(corpus):
     # any_texts = map(lambda text: any([(keyword in text) ]), texts)
      # [text for text in texts if ]
 
-
     # prepend the liwc categories with a percent sign
     # liwc_names = ['%' + category for category in category_vectorizer.get_feature_names()]
     # dimension_names = np.hstack((dimension_names, liwc_names))
@@ -909,16 +347,25 @@ def explore_texts(corpus):
 
     # gg.geom_point(weight='coef')
 
-
-def grid():
+def grid(analysis_options):
     corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=1e9, Against=1e9))
     X, y = corpus
-    # make X sliceable:
+    # make X sliceable
     X = X.tocsr()
 
     logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
     timer = Timer()
     printer = tabular.Printer()
+
+    # from sklearn import cluster
+    # from sklearn import decomposition
+    # from sklearn import ensemble
+    # from sklearn import linear_model
+    # from sklearn import naive_bayes
+    # from sklearn import neighbors
+    # from sklearn import neural_network
+    # from sklearn import qda
+    # from sklearn import svm
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
     proportions = [0.005, 0.0075, 0.01, 0.05, 0.1, 0.25, 0.333, 0.5, 0.666, 0.75, 1.0]
@@ -975,45 +422,3 @@ def grid():
                 )
 
                 printer.write(results)
-
-
-def links_scikit():
-    # index_range = range(len(dictionary.index2token))
-    # docmatrix = np.matrix([[bag_of_tfidf.get(index, 0) for index in index_range] for bag_of_tfidf in tfidf_documents])
-    # for i, bag_of_tfidf in enumerate(tfidf_documents):
-    #     index_scores = sorted(bag_of_tfidf.items(), key=lambda x: -x[1])
-    #     doc = ['%s=%0.4f' % (dictionary.index2token[index], score) for index, score in index_scores]
-    #     print i, '\t'.join(doc)
-
-    # U, s, V = np.linalg.svd(docmatrix, full_matrices=False)
-    # print docmatrix.shape, '->', U.shape, s.shape, V.shape
-    maxlen = 10000
-
-    import tsa.data.sb5b.links
-    endpoints = tsa.data.sb5b.links.read(limit=1000)
-    corpus_strings = (endpoint.content[:maxlen] for endpoint in endpoints)
-
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.95)
-    counts = count_vectorizer.fit_transform(corpus_strings)
-    # count_vectorizer.vocabulary_ is a dict from strings to ints
-
-    tfidf_transformer = TfidfTransformer()
-    tfidf_counts = tfidf_transformer.fit_transform(counts)
-
-    # count_vectors_index_tokens is a list (map from ints to strings)
-    count_vectors_index_tokens = count_vectorizer.get_feature_names()
-
-    # eg., 1000 documents, 2118-long vocabulary (with brown from the top)
-    print count_vectors_index_tokens.shape
-
-    pca = decomposition.PCA(2)
-    doc_pca_data = pca.fit_transform(tfidf_counts.toarray())
-
-    print doc_pca_data
-
-    # target_vocab = ['man', 'men', 'woman', 'women', 'dog', 'cat', 'today', 'yesterday']
-    # for token_type_i, coords in enumerate(vocab_pca_data):
-    #     token = vector_tokens[token_type_i]
-    #     if token in target_vocab:
-    #         x, y = coords
-    #         print "%s,%.12f,%.12f" % (token, x, y)

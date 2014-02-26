@@ -1,13 +1,38 @@
 import IPython
 from itertools import islice
 from collections import defaultdict
+import numpy as np
+from tsa.science import numpy_ext as npx
+
+from scipy import sparse
 
 import gensim
 from gensim.utils import simple_preprocess
-from tsa.lib import cache, tabular, itertools
 
-import logging
+from tsa import logging
 logger = logging.getLogger(__name__)
+from tsa.lib import cache
+
+from tsa.science.summarization import explore_topics
+
+def to_gensim(array):
+    # convert a csr corpus to what gensim wants: a list of list of tuples
+    mat = sparse.csr_matrix(array)
+    return [zip(row.indices, row.data) for row in mat]
+
+
+def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
+    if tfidf_transform:
+        if sparse.issparse(X):
+            X = X.toarray()
+        X = npx.tfidf(X)
+
+    corpus = to_gensim(X)
+
+    vocab = dict(enumerate(dimension_names))
+    topic_model = gensim.models.LdaModel(corpus,
+        id2word=vocab, num_topics=num_topics, passes=1)
+    return topic_model
 
 
 def links_gensim(analysis_options):
@@ -122,3 +147,29 @@ def links_gensim(analysis_options):
         print 'all', doc_topics
         print
         print endpoint['content']
+
+
+def topics(num_topics=5):
+    corpus = ClassificationCorpus.sb5_equal()
+    X, y, label_names, label_ids, dimension_names = corpus
+    # make X sliceable:
+    # X = X.tocsr()
+    X = X.toarray()
+
+    logger.debug('topics(): X.shape = %s, y.shape = %s', X.shape, y.shape)
+    # X.todok().items() returns a list of ((row, col), value) tuples
+
+    build_topic_model
+    for label_i, label_name in enumerate(label_names):
+        sub_X = X[y == label_i, :]
+
+        colsums = sub_X.sum(axis=0)
+        # sub_dims is a list of the indices of columns that have nonzero occurrences:
+        sub_dims = colsums.nonzero()[0]
+
+        topic_model = build_topic_model(sub_X[:, sub_dims], dimension_names[sub_dims],
+            tfidf_transform=True, num_topics=num_topics)
+
+        print '---'
+        print label_i, ':', label_name
+        explore_topics(topic_model)

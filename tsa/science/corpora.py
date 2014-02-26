@@ -1,4 +1,5 @@
 import numpy as np
+from tsa.science import numpy_ext as npx
 from scipy import sparse
 
 
@@ -36,7 +37,9 @@ class MulticlassCorpus(object):
 
         # maybe coerce y to np.array here?
         self.y = labelize(y_raw)
-        self.X = np.array([])
+        self.N = self.y.size
+        self.indices = npx.indices(self.y)
+        self.X = np.array([[]])
         self.feature_names = np.array([])
 
     def apply_features(self, documents, feature_function, **feature_function_kwargs):
@@ -46,6 +49,7 @@ class MulticlassCorpus(object):
         corpus.apply_features(documents, features.ngrams, ngram_max=1)
         '''
         X, feature_names = feature_function(documents, **feature_function_kwargs)
+        original_ncolumns = self.X.shape[1]
         # incorporate / merge X
         if self.X.size == 0:
             # only merge non-empty matrices
@@ -56,6 +60,8 @@ class MulticlassCorpus(object):
             self.X = np.hstack((self.X, X))
         # merge feature_names
         self.feature_names = np.concatenate((self.feature_names, feature_names))
+        # return the indices of the added columns
+        return np.arange(original_ncolumns, self.X.shape[1])
 
     def __iter__(self):
         '''

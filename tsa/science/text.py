@@ -20,6 +20,7 @@ def naive_tokenize(text):
 def hashtags(text, case_sensitive=False):
     '''yield every hashtag in text'''
     if not case_sensitive:
+        # by default, it'll lowercase the input
         text = text.lower()
     for match in re.finditer(ur'#\w+', text):  # , flags=re.UNICODE
         yield match.group(0)

@@ -55,6 +55,9 @@ def exponential_decay(a, window=10, alpha=.5):
     windows = np.array(windows).clip(0)
     return (a[windows]*window_distribution).sum(axis=1)
 
+def margins(n):
+    return range(0, n) + range(-n, 0)
+
 # def edgeindices(edgeitems):
 #     # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
 #     # (n) -> [0, 1, ..., (n - 1), -n, -(n + 1), ..., -(n - 1)]
@@ -227,3 +230,16 @@ def tfidf(array):
     # numpy is smart enough to multiple each row by the vector
     # ... I think
     return array * log_idf
+
+
+def balance(*bool_masks):
+    '''
+    Example:
+
+       balance(corpus.y == corpus.labels['For'], corpus.y == corpus.labels['Against'])
+    '''
+    # subsets is an array of indices, all less than the size of each bool_mask (which should be the same)
+    subsets = [bool_mask_to_indices(bool_mask) for bool_mask in bool_masks]
+    per_label = min([subset.size for subset in subsets])
+    balanced = [np.random.choice(subset, per_label, replace=False) for subset in subsets]
+    return np.concatenate(balanced)
