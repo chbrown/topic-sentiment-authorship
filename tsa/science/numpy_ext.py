@@ -72,9 +72,13 @@ def margins(n):
 #     return array[edgeindices(edgeitems)]
 
 
-def hmean(xs):
-    if (xs > 0.0).all():
-        return scipy.stats.hmean(xs)
+def hmean(xs, axis=0):
+    '''
+    Return np.nan when scipy would otherwise normally raise an exception
+    '''
+    a = np.array(xs)
+    if (a > 0.0).all():
+        return scipy.stats.hmean(a, axis=axis)
     else:
         return np.nan
 
@@ -236,7 +240,7 @@ def balance(*bool_masks):
     '''
     Example:
 
-       balance(corpus.y == corpus.labels['For'], corpus.y == corpus.labels['Against'])
+       balanced_indices = balance(corpus.y == corpus.labels['For'], corpus.y == corpus.labels['Against'])
     '''
     # subsets is an array of indices, all less than the size of each bool_mask (which should be the same)
     subsets = [bool_mask_to_indices(bool_mask) for bool_mask in bool_masks]

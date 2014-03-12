@@ -109,9 +109,7 @@ def plot_hashtag_volumes(analysis_options):
     plot_selection(X[:, selected_indices], feature_names[selected_indices])
     X = X[:, selected_indices]
     feature_names = feature_names[selected_indices]
-    # plt.ylim(-0.00, 0.1)
 
     exit(IPython.embed())
 
-    # plt.plot(subset)
     # plt.title('Coefficient variances converging across a %d-iteration bootstrap\n(25 highest and 25 lowest variances)' % subset.shape[0])

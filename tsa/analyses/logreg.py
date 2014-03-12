@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 # universals:
 import IPython
+import scipy
 import numpy as np
 import pandas as pd
 from tsa.science import numpy_ext as npx
@@ -16,11 +17,13 @@ from sklearn import linear_model
 
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 from tsa.lib import itertools
+from tsa.lib.debugger import shell
 from tsa.science import timeseries
 from tsa import logging
 logger = logging.getLogger(__name__)
 
-from tsa.science.plot import plt
+from tsa.science import features
+from tsa.science.plot import plt, fig_path, clear
 # import matplotlib.pyplot as plt
 
 logger.info('%s finished with imports', __file__)
@@ -72,45 +75,110 @@ def bootstrap_model(X, y, n_iter=100, proportion=0.5):
     return coefs
 
 
+def flt(x):
+    return '%.2f' % x
+
+
 def errors(analysis_options):
-    corpus = read_sb5b_MulticlassCorpus()
+    corpus = read_sb5b_MulticlassCorpus(labeled_only=True, ngram_features=False)
+    corpus.apply_features(corpus.documents, features.ngrams,
+        # ngram_max=2, min_df=0.01, max_df=0.99)  # defaults
+        ngram_max=2, min_df=1, max_df=1.0)
     print '--loaded corpus--'
-    # labeled_mask = (corpus.y == corpus.labels['For']) | (corpus.y == corpus.labels['Against'])
 
     # balance training set:
-    # per_label = min(Counter(corpus.y[labeled_mask]).values())
-    for_indices = corpus.indices[corpus.y == corpus.labels['For']]
-    against_indices = corpus.indices[corpus.y == corpus.labels['Against']]
-    per_label = min(against_indices.size, for_indices.size)
-    for_selection = np.random.choice(for_indices, per_label, replace=False)
-    against_selection = np.random.choice(against_indices, per_label, replace=False)
-    balanced_indices = np.concatenate((for_selection, against_selection))
+    balanced_indices = npx.balance(corpus.y == corpus.labels['For'], corpus.y == corpus.labels['Against'])
 
-    X, y = corpus.X[balanced_indices, :], corpus.y[balanced_indices]
+    X = corpus.X[balanced_indices, :]
+    y = corpus.y[balanced_indices]
+    documents = corpus.documents[balanced_indices]
     tweets = [corpus.tweets[index] for index in balanced_indices]
-    # don't use corpus past this point
+    two_classes = np.array([corpus.labels['For'], corpus.labels['Against']])
+    classes = corpus.classes
+    labels = corpus.labels
+    feature_names = corpus.feature_names
+    del corpus
+    del balanced_indices
+    # can't use corpus or balanced_indices past this point.
 
+    indices = npx.indices(y)
     n_iter = 100
     bootstrap_coefs = bootstrap_model(X, y, n_iter=n_iter, proportion=0.5)
     coefs_means = np.mean(bootstrap_coefs, axis=0)
     coefs_variances = np.var(bootstrap_coefs, axis=0)
-    classes = np.array([corpus.labels['For'], corpus.labels['Against']])
 
-    # coefs_adjusted = coefs_means / (coefs_variances + 1)**2
-    coefs_adjusted = coefs_means / (coefs_variances + 1)
-    bootstrap_transformed = X.dot(coefs_adjusted)
-    # bootstrap_transformed = X.dot(coefs_means)
-    # order = np.argsort(bootstrap_transformed)
+    bootstrap_coefs = coefs_means
+    # bootstrap_coefs = coefs_means / (coefs_variances + 1)
+    # bootstrap_coefs = coefs_means / (coefs_variances + 1)**2
+
+    # bootstrap_transformed is just a simple dot product with each token's coefficient,
+    # which is a sum for each line-up of bag of words and coefficients
+    bootstrap_transformed = X.dot(bootstrap_coefs)
+    # we also want the variance of that, though, which may correlate with
+    # the overall confidence of the model, or better: may explain some of
+    # the residual that a simple dot product forgets about
+    logger.info('Computing dot-variance')
+    projections = X.toarray() * bootstrap_coefs
+    # bootstrap_transformed == projections.sum(axis=1)
+    projections_variance = projections.var(axis=1)
+
     class_1_probabilities = npx.logistic(bootstrap_transformed)
     bootstrap_pred_probabilities = np.column_stack((
         1 - class_1_probabilities,
         class_1_probabilities))
-    bootstrap_pred_y = classes[np.argmax(bootstrap_pred_probabilities, axis=1)]
+    bootstrap_max_column = np.argmax(bootstrap_pred_probabilities, axis=1)
+
+    # class_columns = np.repeat(-1, classes.size)
+    # class_columns[two_classes] = npx.indices(two_classes)
+    # order = np.argsort(bootstrap_transformed)
+
+    # pred_probs's first column is the probability of the label classes[pred_y[index]]
+    # so we want to map pred_y[index], which is something like 3 or 4, to 0 or 1
+    bootstrap_pred_y = two_classes[bootstrap_max_column]
+    # bootstrap pred prob is the probability of the top class, over all classes
+    # we want the additive inverse of the harmonic mean, as a way of measuring the extremeness of the model's prediction
+    # npx.hmean([0.1, 0.9]) == .18, npx.hmean([0.5, 0.5] == .5
+    bootstrap_pred_confidence = 1 - (npx.hmean(bootstrap_pred_probabilities, axis=1)*2)
+    # bootstrap_pred_confidence represents the adjusted confidence of a class, i.e.,
+    # the probability of the chosen class but linearly normalized to somewhere between 0 and 1
+    # more linear, instead of harmonic mean:
+    # 1: min = 1  , nothing doing
+    # 2: min =  .5, (x - 1/2)*(2/1) == 1 - (1 - x
+    # 3: min = .33, (x - 1/3)*(3/2)
+    # 4: min = .25, (x - 1/4)*(4/3)
+
+
+    def harmonic_demo():
+        ticks = np.arange(100) + 1.0
+        grid = (ticks / ticks.max())
+        edge = grid.reshape(1, -1)
+
+        a = np.repeat(edge, edge.size, axis=0)
+        b = a.T
+        c = 1 - (a + b)
+        # plt.cla()
+        # plt.imshow(a)
+        # plt.imshow(b)
+        # plt.imshow(c)
+        # plt.cla()
+
+        triples = np.column_stack((a.ravel(), b.ravel(), c.ravel()))
+        pos_triples = triples[c.ravel() > 0]
+        # plt.scatter(pos_triples[:,0], pos_triples[:, 1], c=pos_triples[:, 2])
+        harmonic = npx.hmean(pos_triples, axis=1)
+        plt.cla()
+        plt.scatter(pos_triples[:, 0], pos_triples[:, 1], c=harmonic)
+
+
+
+    # plt.plot(a, label='up')
+    # plt.plot(a, label='down')
+    # plt.plot(npx.hmean(np.column_stack((a, b, c)), axis=1), label='hmean')
+
+    # IPython.embed() or
 
     print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(y, bootstrap_pred_y)
-
-    binned_accuracy(bootstrap_transformed, y, bootstrap_pred_y)
-
+    # binned_accuracy(bootstrap_transformed, y, bootstrap_pred_y)
 
     errors_mask = bootstrap_pred_y != y
     logger.info('The model mis-predicted %d out of a total of %d', errors_mask.sum(), y.size)
@@ -118,20 +186,35 @@ def errors(analysis_options):
     bounds = npx.bounds(bootstrap_transformed)
     print 'Transforms of mispredictions'
     hist(bootstrap_transformed[errors_mask], bounds)
-    # quantiles(bootstrap_transformed[errors_mask])
     print 'Transforms of correct predictions'
     hist(bootstrap_transformed[~errors_mask], bounds)
-    # quantiles(bootstrap_transformed[~errors_mask])
 
-    IPython.embed() or exit()
+    # hist((np.max(bootstrap_pred_probabilities[errors_mask], axis=1)-0.5)*2.0)
+    def render_predictions_histograms():
+        plt.cla()
+        plt.hist((np.max(bootstrap_pred_probabilities[errors_mask], axis=1)-0.5)*2.0, bins=25)
+        plt.title('Mispredictions')
+        plt.xlabel('Probability of assigned label')
+        plt.ylabel('# of tweets')
+        plt.gcf().set_size_inches(8, 5)
+        plt.savefig(fig_path('hist-proba-incorrect.pdf'))
 
-    errors_indices = corpus.indices[errors_mask]
+        # hist((np.max(bootstrap_pred_probabilities[~errors_mask], axis=1)-0.5)*2.0)
+        plt.cla()
+        plt.hist((np.max(bootstrap_pred_probabilities[~errors_mask], axis=1)-0.5)*2.0, bins=25)
+        plt.title('Correct predictions')
+        plt.xlabel('Probability of assigned label')
+        plt.ylabel('# of tweets')
+        plt.gcf().set_size_inches(8, 5)
+        plt.savefig(fig_path('hist-proba-correct.pdf'))
+
+    # errors_indices = balanced_indices[errors_mask]
     # pred_pairs = np.column_stack((bootstrap_pred_y, y))
     # Counter(zip(bootstrap_pred_y, y))
 
-    confusion_matrix = metrics.confusion_matrix(y, bootstrap_pred_y, range(len(corpus.classes)))
-    rownames = ['(Correct) ' + name for name in corpus.classes]
-    print pd.DataFrame(confusion_matrix, index=rownames, columns=corpus.classes)
+    # confusion_matrix = metrics.confusion_matrix(y, bootstrap_pred_y, range(len(classes)))
+    # rownames = ['(Correct) ' + name for name in classes]
+    # print pd.DataFrame(confusion_matrix, index=rownames, columns=classes)
 
     '''
     Negative, in this case, means "For"
@@ -142,25 +225,125 @@ def errors(analysis_options):
     '''
 
 
-    def flt(x):
-        return '%.2f' % x
+    # pred_y is an array of labels, like [3, 4, 4, 3, 4 ... 3, 4, 4, 4, 4]
+    pred_y = bootstrap_pred_y
+    pred_confidence = bootstrap_pred_confidence
 
-    # randomization shouldn't hurt
-    selected_indices = corpus.indices[errors_mask]
-    np.random.shuffle(selected_indices)
-    for error_index in selected_indices[:50]:
+    # def print_predictions(indices):
+    selected_indices = []
+    for index in selected_indices:
+        print '\nModel predicted %r, annotated as %r' % (classes[pred_y[index]], classes[y[index]])
+        print 'Confidence in prediction = %0.5f, variance in = %0.5f' % (
+            pred_confidence[index], projections_variance[index])
+        print ' ', documents[index]
         print
-        print 'Predicted %r, should be %r' % (
-            corpus.classes[bootstrap_pred_y[error_index]],
-            corpus.classes[y[error_index]])
-        print tweets[error_index]['Tweet']
+        print
+
+    # correct_indices_all = npx.bool_mask_to_indices(~errors_mask)
+    # randomly pick up to 50
+    # correct_indices_50 = np.random.choice(correct_indices_all, size=50, replace=False)
+    ordering = pred_confidence.argsort()
+    # ordering is from least confident to most confident
+    incorrect_indices_ordered_by_confidence = indices[ordering][errors_mask[ordering]]
+    correct_indices_ordered_by_confidence = indices[ordering][~errors_mask[ordering]]
+
+    print '50 most confident correct predictions'
+    selected_indices = correct_indices_ordered_by_confidence[-50:]
+
+    print '50 least confident correct predictions'
+    selected_indices = correct_indices_ordered_by_confidence[:50]
+
+    print '50 most confident incorrect predictions'
+    selected_indices = incorrect_indices_ordered_by_confidence[-50:]
+
+    print '50 least confident incorrect predictions'
+    selected_indices = incorrect_indices_ordered_by_confidence[:50]
+
+    # print 'correct_indices_50.shape:', correct_indices_50.shape, 'y.shape:', y.shape
+    # print 'bootstrap_pred_y.shape:', bootstrap_pred_y.shape, 'documents.shape', documents.shape
+    # indices[]
+    # classes[3]
+    for_indices = indices[y == labels['For']]
+    against_indices = indices[y == labels['Against']]
+    plt.figure(111)
+    plt.hist(pred_confidence[for_indices], bins=25)
+    plt.figure(112)
+    plt.hist(pred_confidence[against_indices], bins=25)
 
 
+    # estBetaParams <- function(mu, var) {
+    def fit_beta(xs):
+        # http://en.wikipedia.org/wiki/Beta_distribution
+        mean = np.mean(xs)
+        variance = np.var(xs)
+        bias = ((mean * (1 - mean)) / variance) - 1
+        alpha = mean * bias
+        beta = (1 - mean) * bias
+        return alpha, beta
+
+
+
+    def plot_beta(alpha, beta):
+        grid = np.arange(100) / 100.0
+        # dist = np.random.beta(alpha, beta)
+        # ys = np.ran
+        plt.plot(grid, scipy.stats.beta.pdf(grid, alpha, beta), color='r')
+
+    def data_with_beta(xs):
+        alpha, beta = fit_beta(xs)
+        plt.hist(xs)
+        plot_beta(alpha, beta)
+
+
+    beta_support = np.arange(100) / 100.0
+
+
+
+    plt.cla()
+    xs = pred_confidence[against_indices]
+    plt.hist(xs, normed=True, bins=25, color='r', alpha=0.5)
+    alpha, beta = fit_beta(xs)
+    plt.plot(beta_support, scipy.stats.beta.pdf(beta_support, alpha, beta), color='r', label='Against')
+
+    xs = pred_confidence[for_indices]
+    plt.hist(xs, normed=True, bins=25, color='b', alpha=0.5)
+    alpha, beta = fit_beta(xs)
+    plt.plot(beta_support, scipy.stats.beta.pdf(beta_support, alpha, beta), color='b', label='For')
+
+    plt.title('Confidence by label')
+    plt.xlabel('Higher = more confident')
+    plt.ylabel('Density')
+    plt.gcf().set_size_inches(8, 5)
+    plt.savefig(fig_path('confidence-by-label.pdf'))
+
+
+
+    # correct_indices_50
+    shell(); exit()
+
+    # most_extreme_to_least_extreme = np.argsort(-np.abs(bootstrap_transformed))
+    print_predictions(correct_indices_50, y, bootstrap_pred_y, bootstrap_pred_probabilities, documents)
+    # bootstrap_pred_probabilities
+
+
+
+
+
+    most_extreme_to_least_extreme = np.argsort(-np.abs(bootstrap_transformed))
+    # ordered_most_extreme_to_least_extreme
+    print 'Top 25 most extreme correct predictions'
+    selected_indices = npx.bool_mask_to_indices(~errors_mask)
+    print_predictions(selected_indices, y, bootstrap_pred_y, bootstrap_pred_probabilities, documents)
+
+    IPython.embed() or exit()
+
+
+    def old_describe(X, error_index):
         x = X[error_index].toarray().ravel()
         # could also just use the .indices of a CSR matrix
         nonzero = x > 0
         # total = coefs_means.dot(x)  # = sum(values)
-        x_names = corpus.feature_names[nonzero]
+        x_names = feature_names[nonzero]
         x_means = x[nonzero] * coefs_means[nonzero]
         x_variances = x[nonzero] * coefs_variances[nonzero]
         reordering = np.argsort(x_means)
@@ -177,8 +360,8 @@ def errors(analysis_options):
     # what is it that differentiates the hard-to-classify tweets near the middle vs.
     # the tweets near the middle that it gets right?
 
-    # biased_model = linear_model.LogisticRegression(fit_intercept=False)
-    # biased_model.fit(X, y)
+    biased_model = linear_model.LogisticRegression(fit_intercept=False)
+    biased_model.fit(X, y)
     # biased_pred_y = biased_model.predict(X)
     # print 'Biased overall accuracy: %.4f' % metrics.accuracy_score(y, biased_pred_y)
 
@@ -506,8 +689,6 @@ def standard(analysis_options):
     IPython.embed(); raise SystemExit(91)
 
     random_lr_coefs = model.coef_.ravel()
-
-    # plt.scatter(
 
     # folds = cross_validation.KFold(y.size, 10, shuffle=True)
     # for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):

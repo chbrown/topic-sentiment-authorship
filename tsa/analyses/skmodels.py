@@ -3,6 +3,7 @@
 import IPython
 import numpy as np
 from tsa.science import numpy_ext as npx
+import os.path
 
 from datetime import datetime
 
@@ -22,8 +23,10 @@ from sklearn import linear_model
 from tsa import logging
 logger = logging.getLogger(__name__)
 
-from tsa.lib import tabular, itertools
+from tsa.lib import cache, tabular, itertools
 from tsa.lib.timer import Timer
+from tsa.science import features
+from tsa.science.corpora import MulticlassCorpus
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
 
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
@@ -84,9 +87,92 @@ def perceptron(analysis_options):
         print
 
 
+def read_ttv2_corpus(filepath):
+    from twilight.lib import tweets
+    with open(filepath) as lines:
+        headers = lines.next()
+        # print 'ttv2 headers', headers
+        for i, line in itertools.sig_enumerate(lines, logger=logger):
+            yield tweets.TTV2.from_line(line)
+
+
+def out_of_sample(analysis_options):
+    sb5b_corpus = read_sb5b_MulticlassCorpus(ngram_features=False)
+
+    # print 'len sb5b_corpus =', len(sb5b_corpus.documents)
+    @cache.decorate('/tmp/tsa-corpora-sb5b-sample-tweets.pickle')
+    def cached_read():
+        for document in read_sb5b_MulticlassCorpus(ngram_features=False).documents:
+            yield dict(label='sb5b', document=document[:200])
+
+        sample_filepath = os.path.expanduser('~/Dropbox/ut/qp/qp-2/data/twitter-sample-en.ttv2')
+        for ttv2 in read_ttv2_corpus(sample_filepath):
+            yield dict(label='sample', document=ttv2.text[:200])
+
+    raw_corpus = cached_read()
+
+    # y_raw = np.repeat(['sample', 'sb5b'], [sample_documents.size, sb5b_documents.size])
+    # sample_documents = np.fromiter((ttv2.text for ttv2 in ttv2_iter), dtype='U168')
+    # sb5b_documents = read_sb5b_MulticlassCorpus(ngram_features=False).documents
+
+    y_raw = [d['label'] for d in raw_corpus]
+    documents = [d['document'] for d in raw_corpus]
+    # 99% of sample tweets are shorter than than 168 characters
+    # 100% of SB5 tweets are shorter than 162 characters
+    # numpy uses '<U...' for unicode and '|S...' for str, where ... is the character length
+    corpus = MulticlassCorpus(y_raw)
+    corpus.documents = documents
+    # defaults: ngram_max=2, min_df=0.01, max_df=0.99
+    corpus.apply_features(corpus.documents, features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
+    # corpus.apply_features(corpus.documents, features.ngrams, ngram_max=2, min_df=50, max_df=0.95)
+
+    sb5b_mask = corpus.y == corpus.labels['sb5b']
+    sample_mask = corpus.y == corpus.labels['sample']
+    selected_indices = npx.balance(sb5b_mask, sample_mask)
+
+    y = corpus.y[selected_indices]
+    X = corpus.X[selected_indices]
+    # print dict(npx.table(y))
+
+    IPython.embed() or exit()
+
+    accuracies = []
+    folds = cross_validation.KFold(y.size, 10, shuffle=True)
+    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+        # Percepton penalty : None, l2 or l1 or elasticnet
+        test_X, test_y = X[test_indices], y[test_indices]
+        train_X, train_y = X[train_indices], y[train_indices]
+        model = linear_model.LogisticRegression(penalty='l2')
+        # model = naive_bayes.MultinomialNB()
+        model.fit(train_X, train_y)
+        pred_y = model.predict(test_X)
+        accuracy = metrics.accuracy_score(test_y, pred_y)
+        accuracies.append(accuracy)
+        print '[%d] accuracy = %.4f' % (fold_index, accuracy)
+
+    print 'mean accuracy = %.4f' % (np.mean(accuracies))
+
+    # (pred_y == train_y)
+    wrong_indices = test_indices[pred_y != test_y]
+    corpus_indices = selected_indices[wrong_indices]
+
+    docs = np.array(corpus.documents)
+    y_orig = np.array(y_raw)
+    zip(y_orig[corpus_indices], docs[corpus_indices])
+
+
 
 def simple(analysis_options):
-    corpus = read_sb5b_MulticlassCorpus(labeled_only=True, ngram_max=2, min_df=1, max_df=1.0)
+    corpus = read_sb5b_MulticlassCorpus(labeled_only=True, ngram_features=False)
+    # corpus.apply_features(corpus.documents, features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
+    corpus.apply_features(corpus.documents, features.ngrams, ngram_max=2, min_df=50, max_df=0.95)
+    # corpus.apply_features(corpus.documents, features.cooccurrences, min_df=3, max_df=0.99)
+    '''
+    With Naive Bayes, expanding min_df=2 to min_df=1 brings the dimensions
+    from 297784 to 675094, and decreases accuracy from 94% to 89%.
+
+    Same with ngrams and ngram_max of 2.
+    '''
 
     from sklearn import naive_bayes
 
@@ -100,6 +186,9 @@ def simple(analysis_options):
     X = X.tocsr()  # make X sliceable
     print 'X =', X.shape, 'y =', y.shape
 
+    # print "Using linear_model.LogisticRegression(penalty='l2')"
+    # X = X.toarray()  # make X LARS-able
+
     accuracies = []
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
     for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
@@ -107,12 +196,14 @@ def simple(analysis_options):
         test_X, test_y = X[test_indices], y[test_indices]
         train_X, train_y = X[train_indices], y[train_indices]
 
-        model = linear_model.LogisticRegression(penalty='l2')
+        # model = linear_model.LogisticRegression(penalty='l2')
         # model = linear_model.LogisticRegression(penalty='l1')
         # model = linear_model.LogisticRegression(penalty='l2', dual=True)
-        # model = naive_bayes.MultinomialNB()
+        model = naive_bayes.MultinomialNB()
+        # model = linear_model.Lars(fit_intercept=False, normalize=True)
         model.fit(train_X, train_y)
         pred_y = model.predict(test_X)
+        IPython.embed(); exit()
         accuracy = metrics.accuracy_score(test_y, pred_y)
         accuracies.append(accuracy)
         print '[%d] accuracy = %.4f' % (fold_index, accuracy)

@@ -20,7 +20,11 @@ qmargins = [0, 5, 10, 50, 90, 95, 100]
 
 
 def fig_path(name, index=0):
-    dirpath = os.path.expanduser('~/Dropbox/ut/qp/figures-qp-2')
+    '''
+    `name should be a full filename, like issue2.pdf.
+    This will never return a filename that exists at the time of calling the function.
+    '''
+    dirpath = os.path.expanduser('~/Dropbox/ut/qp/qp-2/figures')
     base, ext = os.path.splitext(name)
     filename = base + ('-%02d' % index if index > 0 else '') + ext
     filepath = os.path.join(dirpath, filename)

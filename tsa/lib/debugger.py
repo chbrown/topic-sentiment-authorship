@@ -3,6 +3,8 @@ Usage:
 
 from tsa.lib.debugger import shell
 shell(); raise SystemExit(99)
+
+http://ipython.org/ipython-doc/stable/interactive/reference.html#embedding-ipython
 '''
 
 import IPython

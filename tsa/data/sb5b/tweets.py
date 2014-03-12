@@ -35,7 +35,7 @@ def read():
             yield row
 
 
-def read_MulticlassCorpus(labeled_only=False, ngram_max=1, min_df=0.001, max_df=0.95):
+def read_MulticlassCorpus(labeled_only=False, ngram_features=True):
     # look into caching with np.load and/or stdlib's pickle
     # http://docs.scipy.org/doc/numpy/reference/generated/numpy.load.html
     if labeled_only:
@@ -68,9 +68,10 @@ def read_MulticlassCorpus(labeled_only=False, ngram_max=1, min_df=0.001, max_df=
     times = [tweet['TweetTime'] for tweet in tweets]
     corpus.times = np.array(times).astype('datetime64[s]')
 
-    corpus.documents = [tweet['Tweet'] for tweet in tweets]
-    corpus.apply_features(corpus.documents, features.ngrams,
-        ngram_max=ngram_max, min_df=min_df, max_df=max_df)
+    corpus.documents = np.array([tweet['Tweet'] for tweet in tweets])
+    if ngram_features:
+        # use the defaults: ngram_max=2, min_df=0.01, max_df=0.99
+        corpus.apply_features(corpus.documents, features.ngrams)
     # this corpus has the following additional attributes:
     #   tweets
     #   documents

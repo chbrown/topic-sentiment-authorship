@@ -55,6 +55,8 @@ This is because each cell has much more in common with the rest of the column th
     >>> grades_by_age.mean(axis=1)
     array([ 56. ,  53.5,  50. ,  53.5])
 
+But if you are selecting features, or labels, axis=1 is probably what you want.
+
 This is also helpful: http://pages.physics.cornell.edu/~myers/teaching/ComputationalMethods/python/arrays.html
 
 
@@ -65,10 +67,26 @@ Supposedly, specifying `count` speeds up `fromiter`:
     coefs = np.fromiter(bootstrap_coefs(folds), count=K)
 
 
+
+
 ### Numpy concatenation
 
 - `hstack`: Stack arrays in sequence horizontally (column wise).
 - `vstack`: Stack arrays in sequence vertically (row wise).
+
+
+### Numpy broadcasting
+
+Broadcasting just works with dense arrays, but fails miserably with sparse matrices.
+
+    dense = np.arange(15).reshape(-1, 3)
+    sparse = scipy.sparse.csr_matrix(dense)
+
+    vec = np.array([2, 2, 2])
+    (dense * vec).shape == (5, 3)
+    (sparse * vec).shape == (5,)
+
+WTF? `sparse * vec == sparse.dot(vec)`, which is not what I meant at all.
 
 
 ## License

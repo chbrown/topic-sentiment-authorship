@@ -9,6 +9,8 @@ and return a tuple: (values (np.array), feature_names ([str]))
     values.shape = (N, k)
 
 '''
+import re
+import itertools
 import numpy as np
 # from sklearn.feature_extraction.text import TfidfTransformer
 from sklearn.feature_extraction.text import CountVectorizer
@@ -31,6 +33,28 @@ def ngrams(documents, min_df=0.01, max_df=0.99, ngram_max=2):
     # default token_pattern=u'(?u)\b\w\w+\b'
     vectorizer = CountVectorizer(token_pattern=ur'\b\S+\b',
         ngram_range=(1, ngram_max), min_df=min_df, max_df=max_df)
+    values = vectorizer.fit_transform(documents)
+    return (values, vectorizer.get_feature_names())
+
+
+def cooccurrences(documents, min_df=0.01, max_df=0.99):
+    '''
+    Co-occurrences. Right now, just pairs.
+
+    documents should be an iterable of strings (not tokenized)
+    '''
+    logger.debug('Extracting co-occurrences features')
+
+    def tokenizer(document):
+        # itertools.combinations, compared to itertools.permutations, will
+        # return a list of sets, rather than tuples, all 2-long
+        tokens = re.findall(ur'(?u)\b\w\w+\b', document)
+        for pair in itertools.combinations(tokens, 2):
+            yield '-'.join(pair)
+        return
+
+    vectorizer = CountVectorizer(tokenizer=tokenizer,
+        ngram_range=(1, 1), min_df=min_df, max_df=max_df)
     values = vectorizer.fit_transform(documents)
     return (values, vectorizer.get_feature_names())
 
