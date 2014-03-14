@@ -36,32 +36,44 @@ def read_tsv(filepath, limit=None):
             yield row
 
 
+def formatter(value):
+    if isinstance(value, basestring):
+        return unicode(value)
+    elif isinstance(value, int):
+        return '%d' % value
+    else:
+        return '%0.3f' % value
+
+
 class Printer(object):
     '''
     As with Awk:
         FS = field separator (defaults to tab)
         RS = record separator (defaults to newline)
     '''
-    def __init__(self, headers=[], output=sys.stdout, FS='\t', RS='\n'):
-        self.headers = headers
+    def __init__(self, output=sys.stdout, FS='\t', RS='\n'):
         self.output = output
         self.FS = FS
         self.RS = RS
 
-    def formatter(self, value):
-        if isinstance(value, basestring):
-            return unicode(value)
-        else:
-            return '%0.3f' % value
+        self.headers_printed = False
+        self.headers = []
 
-    def write_strings(self, values):
-        print >> self.output, self.FS.join([self.formatter(value) for value in values]), self.RS,
+    def _emit(self, values):
+        print >> self.output, self.FS.join(formatter(value) for value in values), self.RS,
 
-    def write(self, dict_):
-        new_headers = set(dict_.keys()) - set(self.headers)
+    def add_headers(self, headers):
+        # if there are any new strings in new_headers, emit a new line
+        new_headers = set(headers) - set(self.headers)
         if len(new_headers) > 0:
+            # hope the order wasn't TOO important
             self.headers.extend(new_headers)
-            # ^^^ signals an updated headers row
-            print >> self.output, '^^^',
-            self.write_strings(self.headers)
-        self.write_strings(dict_.get(key, '') for key in self.headers)
+            if self.headers_printed:
+                # ^^^ signals an updated headers row
+                print >> self.output, '^^^',
+                self.headers_printed = True
+            self._emit(self.headers)
+
+    def write(self, row):
+        self.add_headers(row.keys())
+        self._emit(row.get(key, '') for key in self.headers)

@@ -16,12 +16,14 @@ def metrics_summary(y_true, y_pred):
     ]).format(**metrics_dict(y_true, y_pred))
 
 
-def metrics_dict(y_true, y_pred):
+def metrics_dict(y_true, y_pred, pos_label=1):
+    precision, recall, f1, support = metrics.precision_recall_fscore_support(y_true, y_pred,
+        pos_label=pos_label, labels=[pos_label])
     return dict(
         accuracy=metrics.accuracy_score(y_true, y_pred),
-        precision=metrics.precision_score(y_true, y_pred),
-        recall=metrics.recall_score(y_true, y_pred),
-        f1=metrics.f1_score(y_true, y_pred),
+        precision=precision,
+        recall=recall,
+        f1=f1,
         # hamming loss is only different from 0-1 loss in multi-label scenarios
         # hamming_loss=metrics.hamming_loss(y_true, y_pred),
         # jaccard_similarity is only different from the accuracy in multi-label scenarios

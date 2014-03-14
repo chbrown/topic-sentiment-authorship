@@ -11,47 +11,24 @@ from viz.geom import hist
 
 # from collections import Counter
 from sklearn import metrics
+from sklearn import svm
+from sklearn import neural_network
+from sklearn import naive_bayes
 from sklearn import cross_validation
 from sklearn import linear_model
-from tsa.science.corpora import MulticlassCorpus
 from tsa.science import features
 from tsa.science.summarization import metrics_dict
 
-from tsa.lib import itertools
+from tsa.lib import cache, tabular, itertools
 from tsa import logging
 logger = logging.getLogger(__name__)
 
 # from tsa.science.plot import plt
-# import matplotlib.pyplot as plt
-
-
-def read_MulticlassCorpus(labeled_only=False):
-    dirpath = os.path.expanduser('~/corpora-public/bopang_lillianlee/rt-polaritydata/')
-
-    def read_file(filename, label):
-        with open(os.path.join(dirpath, filename)) as fd:
-            for line in fd:
-                yield (label, line)
-
-    data = list(read_file('rt-polarity.neg.utf8', 'neg')) + list(read_file('rt-polarity.pos.utf8', 'pos'))
-    # data is now a list of label:string-document:string tuples
-
-    labels, documents = zip(*data)
-    corpus = MulticlassCorpus(labels)
-    corpus.documents = documents
-
-    corpus.apply_features(documents, features.ngrams,
-        # ngram_max=2, min_df=0.001, max_df=0.95)
-        ngram_max=2, min_df=1, max_df=1.0)
-    # corpus.apply_features(documents, features.liwc)
-    # corpus.apply_features(documents, features.afinn)
-    # corpus.apply_features(documents, features.anew)
-    logger.debug('rt-polaritydata MulticlassCorpus created: %s', corpus.X.shape)
-    return corpus
 
 
 def rottentomatoes(analysis_options):
-    corpus = read_MulticlassCorpus()
+    import tsa.data.rt_polaritydata
+    corpus = tsa.data.rt_polaritydata.read_MulticlassCorpus()
 
     indices = corpus.indices.copy()
     np.random.shuffle(indices)
@@ -64,10 +41,7 @@ def rottentomatoes(analysis_options):
         X = corpus.X[indices]
     y = corpus.y[indices]
 
-
-    from sklearn import svm
-    from sklearn import neural_network
-    from sklearn import naive_bayes
+    printer = tabular.Printer()
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
     for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):

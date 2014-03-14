@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-# universals:
 import IPython
 import numpy as np
+import pandas as pd
 from tsa.science import numpy_ext as npx
 import os.path
 
@@ -10,13 +10,9 @@ from datetime import datetime
 from viz.format import quantiles
 from viz.geom import hist
 
-from sklearn import metrics
 from sklearn import cross_validation
 from sklearn import linear_model
-# from collections import Counter
-# from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
-# from sklearn.feature_extraction import DictVectorizer
-# from tsa.lib.text import CountVectorizer
+from sklearn import metrics
 # from sklearn.feature_selection import SelectPercentile, SelectKBest
 # from sklearn.feature_selection import chi2, f_classif, f_regression
 
@@ -28,6 +24,7 @@ from tsa.lib.timer import Timer
 from tsa.science import features
 from tsa.science.corpora import MulticlassCorpus
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
+from tsa.science.plot import plt, fig_path, clear
 
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 
@@ -437,79 +434,3 @@ def explore_texts(corpus):
     #     gg.scale_x_continuous('Coefficients', labels=list(x_ticks), breaks=list(x_ticks))
 
     # gg.geom_point(weight='coef')
-
-def grid(analysis_options):
-    corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=1e9, Against=1e9))
-    X, y = corpus
-    # make X sliceable
-    X = X.tocsr()
-
-    logger.debug('X.shape: %s, y.shape: %s', X.shape, y.shape)
-    timer = Timer()
-    printer = tabular.Printer()
-
-    # from sklearn import cluster
-    # from sklearn import decomposition
-    # from sklearn import ensemble
-    # from sklearn import linear_model
-    # from sklearn import naive_bayes
-    # from sklearn import neighbors
-    # from sklearn import neural_network
-    # from sklearn import qda
-    # from sklearn import svm
-
-    folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    proportions = [0.005, 0.0075, 0.01, 0.05, 0.1, 0.25, 0.333, 0.5, 0.666, 0.75, 1.0]
-    models = [
-        ('logistic_regression-L1', linear_model.LogisticRegression(penalty='l1', dual=False)),
-        ('logistic_regression-L2', linear_model.LogisticRegression(penalty='l2', dual=False)),
-        ('logistic_regression-L2-C100', linear_model.LogisticRegression(penalty='l2', C=100.0)),
-        # ('randomized_logistic_regression', linear_model.RandomizedLogisticRegression()),
-        # ('sgd', linear_model.SGDClassifier()),
-        ('perceptron-L1', linear_model.Perceptron(penalty='l1')),
-        ('perceptron-L2', linear_model.Perceptron(penalty='l2')),
-        # ('linear-svc-L2', svm.LinearSVC(penalty='l2')),
-        # ('linear-svc-L1', svm.LinearSVC(penalty='l1', dual=False)),
-        # ('random-forest', ensemble.RandomForestClassifier(n_estimators=10, criterion='gini',
-        #     max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
-        #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
-        #     min_density=None, compute_importances=None)),
-        # ('naivebayes', naive_bayes.MultinomialNB()),
-        # ('knn-10', neighbors.KNeighborsClassifier(10)),
-        # ('neuralnet', neural_network.BernoulliRBM()),
-        # ('qda', qda.QDA()),
-        # ('knn-3', neighbors.KNeighborsClassifier(3)),
-        # ('sgd-log-elasticnet', linear_model.SGDClassifier(loss='log', penalty='elasticnet')),
-        # ('linear-regression', linear_model.LinearRegression(normalize=True)),
-        # ('svm-svc', svm.SVC()),
-        # ('adaboost-50', ensemble.AdaBoostClassifier(n_estimators=50)),
-    ]
-
-    # in KFold, if shuffle=False, we look at a sliding window for the test sets, starting at the left
-    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
-        # for each fold
-        for proportion in proportions:
-            # for each proportion
-            size = int(train_indices.size * proportion)
-            train_indices_subset = np.random.choice(train_indices, size=size, replace=False)
-            for model_name, model in models:
-                # for each model
-                test_X, test_y = X[test_indices], y[test_indices]
-                train_X, train_y = X[train_indices], y[train_indices]
-                with timer:
-                    # fit and predict
-                    model.fit(train_X, train_y)
-                    pred_y = model.predict(test_X)
-
-                results = metrics_dict(test_y, pred_y)
-
-                results.update(
-                    fold=fold_index,
-                    model=model_name,
-                    proportion=proportion,
-                    train=len(train_indices_subset),
-                    test=len(test_indices),
-                    elapsed=timer.elapsed,
-                )
-
-                printer.write(results)

@@ -175,7 +175,7 @@ def errors(analysis_options):
     # plt.plot(a, label='down')
     # plt.plot(npx.hmean(np.column_stack((a, b, c)), axis=1), label='hmean')
 
-    # IPython.embed() or
+    # IPython.embed()
 
     print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(y, bootstrap_pred_y)
     # binned_accuracy(bootstrap_transformed, y, bootstrap_pred_y)
