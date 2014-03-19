@@ -20,6 +20,7 @@ CREATE TABLE documents (
 
   created timestamp with time zone DEFAULT current_timestamp NOT NULL
 );
+CREATE INDEX ON documents(source_id, label);
 
 
 CREATE TABLE endpoints (
