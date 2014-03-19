@@ -43,4 +43,5 @@ class Source(Model):
 
 class Document(Model):
     __table__ = Table('documents', metadata, autoload=True)
-    # source = orm.relationship(Source, Document.source_id)
+
+    source = orm.relationship(Source)

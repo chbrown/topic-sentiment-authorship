@@ -2,6 +2,7 @@ import os
 from sqlalchemy import create_engine, MetaData
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import scoped_session, sessionmaker
+from tsa.lib.encoders import JSONEncoder
 
 engine = create_engine('postgresql://localhost/%s' % os.getenv('TSA_DATABASE', 'tsa'))
 metadata = MetaData(bind=engine)
@@ -25,6 +26,6 @@ class Base(object):
             setattr(self, k, v)
 
     def __repr__(self):
-        return self.__json__()
+        return JSONEncoder(indent=2, sort_keys=True).encode(self.__json__())
 
 Model = declarative_base(metadata=metadata, cls=Base)

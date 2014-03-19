@@ -73,7 +73,7 @@ def sig_enumerate(iterable, start=0, logger=None):
     def handler(signum, frame):
         logger.info(message)
 
-    logger.debug('enumerating... type Ctrl-T to show current iteration')
+    logger.silly('enumerating... type Ctrl-T to show current iteration')
 
     signum = signal.SIGINFO
     old_handler = signal.signal(signum, handler)
