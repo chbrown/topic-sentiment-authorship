@@ -1,4 +1,4 @@
-from tsa.models import Endpoint, sessionmaker
+from tsa.models import Endpoint, create_session
 
 import logging
 logger = logging.getLogger(__name__)
@@ -8,7 +8,7 @@ def read(limit=None):
     '''
     Yields Endpoints (but only those with content)
     '''
-    DBSession = sessionmaker()
+    DBSession = create_session()
     endpoints_with_content = DBSession.query(Endpoint).\
         filter(Endpoint.status_code == 200).\
         filter(Endpoint.content is not None).\

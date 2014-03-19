@@ -1,10 +1,10 @@
 import os
-import itertools
 import numpy as np
 
 from tsa import logging
 logger = logging.getLogger(__name__)
 
+from itertools import cycle, izip
 import matplotlib.cm as colormap
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -41,7 +41,10 @@ def clear():
     # plt.tight_layout()
     plt.margins(0.025, tight=True)
 
-def style_gen():
+
+markers = {0: 'tickleft', 1: 'tickright', 2: 'tickup', 3: 'tickdown', 4: 'caretleft', 'D': 'diamond', 6: 'caretup', 7: 'caretdown', 's': 'square', '|': 'vline', '': 'nothing', 'None': 'nothing', 'x': 'x', 5: 'caretright', '_': 'hline', '^': 'triangle_up', None: 'nothing', 'd': 'thin_diamond', ' ': 'nothing', 'h': 'hexagon1', '+': 'plus', '*': 'star', ',': 'pixel', 'o': 'circle', '.': 'point', '1': 'tri_down', 'p': 'pentagon', '3': 'tri_left', '2': 'tri_up', '4': 'tri_right', 'H': 'hexagon2', 'v': 'triangle_down', '8': 'octagon', '<': 'triangle_left', '>': 'triangle_right'}
+
+def _styles():
     # I can distinguish about six different colors from rainbow
     colors = colormap.rainbow(np.linspace(1, 0, 6))
     # and a few different linestyles
@@ -54,6 +57,20 @@ def style_gen():
             for color in colors:
                 yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
 
-def style_loop():
-    # this will take those 72 style combos from style_gen() and loop indefinitely.
-    return itertools.cycle(style_gen())
+# this will take those 72 style combos from style_gen() and loop indefinitely.
+styles = cycle(_styles())
+
+
+def _distinct_styles():
+    # e.g., for the colorblind
+    linewidths = [1, 2, 3]
+    linestyles = ['-', ':', '--', '-.']
+    colors = colormap.rainbow(np.linspace(1, 0, 6))
+    # period = 60
+    # markers = ['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd']
+
+    zipped = izip(cycle(linewidths), cycle(linestyles), cycle(colors))
+    for linewidth, linestyle, color in zipped:
+        yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
+
+distinct_styles = _distinct_styles()

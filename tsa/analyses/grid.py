@@ -30,7 +30,7 @@ from tsa.lib.timer import Timer
 from tsa.science import features
 from tsa.science.corpora import MulticlassCorpus
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
-from tsa.science.plot import plt, fig_path, clear
+from tsa.science.plot import plt, fig_path, clear, distinct_styles
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 from tsa.data.rt_polaritydata import read_MulticlassCorpus as read_RT_MulticlassCorpus
 from tsa import logging
@@ -46,7 +46,7 @@ def evaluate(model, corpus, train_indices, test_indices):
         model.fit(train_corpus.X, train_corpus.y)
         pred_y = model.predict(test_corpus.X)
 
-    # , pos_label=test_corpus.class_lookup['For']
+    # pos_label=test_corpus.class_lookup['For']
     results = metrics_dict(test_corpus.y, pred_y)
     results.update(
         train=len(train_corpus),
@@ -63,11 +63,59 @@ def plot_runs(runs):
 
     for index, group in df.groupby(['model']):
         agg = group.groupby(['train']).aggregate(np.mean)
-        agg.plot(y='accuracy', label=index)
+        style = distinct_styles.next()
+        agg.plot(y='accuracy', label=index, **style)
+
+
+def MulticlassCorpus_from_documents(documents):
+    documents = list(documents)
+    corpus = MulticlassCorpus(documents)
+    corpus.apply_labelfunc(lambda doc: doc.label)
+    return corpus
+
+
+def grid_multi(analysis_options):
+    from tsa.models import Source, Document, create_session
+    DBSession = create_session()
+
+    # from sqlalchemy import orm
+        # options(
+        #     orm.Load(Document).load_only('id', 'label', 'document'),
+        #     orm.Load(Source).load_only('id', 'name'),
+        # )
+    query = DBSession.query(Document).\
+        join(Source, Source.id == Document.source_id).\
+        filter(Source.name == 'sb5b').\
+        filter(Document.label != None).\
+        order_by(Document.published)
+    # print query
+    # documents = query.all()
+
+    corpus = MulticlassCorpus_from_documents(query)
+    balanced_indices = npx.balance(
+        corpus.y == corpus.class_lookup['For'],
+        corpus.y == corpus.class_lookup['Against'])
+
+    corpus = corpus.subset(balanced_indices)
+    corpus.name = 'SB-5 For/Against'
+    # ngram_max=2, min_df=0.001, max_df=0.95
+    corpus.extract_features(lambda doc: doc.document, features.ngrams,
+        ngram_max=2, min_df=2, max_df=1.0)
+
+    IPython.embed()
+
+    grid_plot(corpus)
+
+
+    # rt_corpus.name = 'Rotten Tomatoes Polarity'
+
+    # grid_plot(rt_corpus)
+
+    # plt.savefig(fig_path('simple-accuracy-rt-polarity.pdf'))
 
 
 def grid_rt(analysis_options):
-    # the corpus is built to be balanced
+    # the RT corpus is built to be balanced
     rt_corpus = read_RT_MulticlassCorpus()
     rt_corpus.name = 'Rotten Tomatoes Polarity'
     # corpus.extract_features(documents, features.liwc)
@@ -79,6 +127,7 @@ def grid_rt(analysis_options):
 
     plt.savefig(fig_path('simple-accuracy-rt-polarity.pdf'))
 
+
 def grid_sb5b(analysis_options):
     sb5b_corpus = read_sb5b_MulticlassCorpus(labeled_only=True)
     balanced_indices = npx.balance(
@@ -86,16 +135,13 @@ def grid_sb5b(analysis_options):
         sb5b_corpus.y == sb5b_corpus.class_lookup['Against'])
 
     sb5b_corpus = sb5b_corpus.subset(balanced_indices)
-    sb5b_corpus.name = 'SB5 For/Against'
+    sb5b_corpus.name = 'SB-5 For/Against'
     # ngram_max=2, min_df=0.001, max_df=0.95
     sb5b_corpus.extract_features(lambda tweet: tweet['Tweet'], features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
 
     grid_plot(sb5b_corpus)
 
     plt.savefig(fig_path('simple-accuracy-sb5.pdf'))
-
-    IPython.embed()
-
 
 
 def grid_plot(corpus):
@@ -110,7 +156,7 @@ def grid_plot(corpus):
         ('Logistic Regression', linear_model.LogisticRegression(penalty='l2')),
         # ('logistic_regression-L2-C100', linear_model.LogisticRegression(penalty='l2', C=100.0)),
         # ('randomized_logistic_regression', linear_model.RandomizedLogisticRegression()),
-        # ('sgd', linear_model.SGDClassifier()),
+        ('SGD', linear_model.SGDClassifier()),
         ('Perceptron', linear_model.Perceptron(penalty='l1')),
         # ('perceptron-L2', linear_model.Perceptron(penalty='l2')),
         # ('linear-svc-L2', svm.LinearSVC(penalty='l2')),
@@ -120,6 +166,7 @@ def grid_plot(corpus):
         #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
         #     min_density=None, compute_importances=None)),
         ('Naive Bayes', naive_bayes.MultinomialNB()),
+        # ('Naive Bayes (Bernoulli)', naive_bayes.BernoulliNB()),
         # ('knn-10', neighbors.KNeighborsClassifier(10)),
         # ('neuralnet', neural_network.BernoulliRBM()),
         # ('qda', qda.QDA()),
@@ -157,7 +204,7 @@ def grid_plot(corpus):
             # average over folds...
 
     plot_runs(rows)
-    plt.legend(loc='bottom right')
+    plt.legend(loc='lower right')
     plt.title(corpus.name)
     plt.xlabel('Training set size')
     plt.ylabel('Accuracy')
@@ -165,5 +212,3 @@ def grid_plot(corpus):
     plt.xlim(0, 5000)
 
     plt.gcf().set_size_inches(8, 5)
-
-    # IPython.embed()

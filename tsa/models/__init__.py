@@ -1,8 +1,8 @@
-from sqlalchemy import Table
+from sqlalchemy import Table, orm
 
-from tsa.models.meta import Model, metadata, sessionmaker
+from tsa.models.meta import Model, metadata, create_session
 
-DBSession = sessionmaker()
+DBSession = create_session()
 
 
 class Endpoint(Model):
@@ -35,3 +35,12 @@ class Endpoint(Model):
     #     if fix and not cached.startswith('http'):
     #         cached = 'http://' + cached
     #     return cached
+
+
+class Source(Model):
+    __table__ = Table('sources', metadata, autoload=True)
+
+
+class Document(Model):
+    __table__ = Table('documents', metadata, autoload=True)
+    # source = orm.relationship(Source, Document.source_id)

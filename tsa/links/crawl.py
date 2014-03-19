@@ -8,7 +8,7 @@ from datetime import datetime
 
 from tsa import stdoutn
 from tsa.lib import html
-from tsa.models import Endpoint, sessionmaker
+from tsa.models import Endpoint, create_session
 
 import logging
 logger = logging.getLogger(__name__)
@@ -17,7 +17,7 @@ whitespace_translations = dict((ord(whitespace), u' ') for whitespace in u'\t\n\
 
 
 def add_url(url, parent_id=None):
-    DBSession = sessionmaker()
+    DBSession = create_session()
 
     endpoint = Endpoint(url=url, parent_id=parent_id)
     DBSession.add(endpoint)
@@ -31,13 +31,13 @@ def add_url(url, parent_id=None):
 
 
 def process_untried_endpoints():
-    DBSession = sessionmaker()
+    DBSession = create_session()
     # id, parent_id, url, status_code, redirect, html, content, created, accessed, timeout
     # find endpoints that aren't already fetched
     query = DBSession.query(Endpoint).\
-        filter(Endpoint.status_code is None).\
-        filter(Endpoint.timeout is None).\
-        filter(Endpoint.error is None).\
+        filter(Endpoint.status_code == None).\
+        filter(Endpoint.timeout == None).\
+        filter(Endpoint.error == None).\
         order_by(Endpoint.id)
 
     logger.info('Processing %d untried endpoints', query.count())

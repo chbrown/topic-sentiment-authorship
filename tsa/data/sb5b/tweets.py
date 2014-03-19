@@ -2,37 +2,11 @@ import os
 from datetime import datetime
 
 import numpy as np
-from tsa.lib import cache, tabular, html  # , itertools
-from tsa.lib.datetime_extra import utc
+from tsa.lib import cache, html  # , itertools
 from tsa.science import features
 from tsa.science.corpora import MulticlassCorpus
 from tsa import logging
 logger = logging.getLogger(__name__)
-
-
-xlsx_filepath = '%s/ohio/sb5-b.xlsx' % os.getenv('CORPORA', '.')
-label_keys = ['For', 'Against', 'Neutral', 'Broken Link', 'Not Applicable']
-
-
-def read():
-    '''Yields dicts with at least 'Labels' and 'Tweet' fields.'''
-    for row in tabular.read_xlsx(xlsx_filepath):
-        # ignore invalid tweets (i.e., the header row)
-        if row['Tweet'] == 'Tweet' and row['Author'] == 'Author' and row['TweetID'] == 'TweetID':
-            logger.silly('Ignoring invalid tweet: %r', row)
-        else:
-            for label_key in label_keys:
-                row[label_key] = bool(row[label_key])
-
-            row['Labels'] = [label_key for label_key in label_keys if row[label_key]]
-            row['Label'] = (row['Labels'] + ['NA'])[0]
-            row['Tweet'] = html.unescape(row['Tweet'])
-            # assert that all naive datetimes are actually timezone aware (and UTC)
-            tweet_time = row['TweetTime']
-            if isinstance(tweet_time, datetime):
-                row['TweetTime'] = tweet_time.replace(tzinfo=utc)
-
-            yield row
 
 
 def read_MulticlassCorpus(labeled_only=False):

@@ -1,13 +1,15 @@
 import os
-
 from sqlalchemy import create_engine, MetaData
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import scoped_session, sessionmaker
 
-connection_string = 'postgresql+psycopg2://localhost/%s' % os.getenv('TSA_DATABASE', 'tsa')
-engine = create_engine(connection_string)
+engine = create_engine('postgresql://localhost/%s' % os.getenv('TSA_DATABASE', 'tsa'))
 metadata = MetaData(bind=engine)
+sessions = sessionmaker(bind=engine)
 
-from sqlalchemy.orm import sessionmaker as sessionmakerfactory
-sessionmaker = sessionmakerfactory(bind=engine)
+
+def create_session():
+    return scoped_session(sessions)
 
 
 class Base(object):
@@ -22,6 +24,7 @@ class Base(object):
         for k, v in kw.items():
             setattr(self, k, v)
 
+    def __repr__(self):
+        return self.__json__()
 
-from sqlalchemy.ext.declarative import declarative_base
 Model = declarative_base(metadata=metadata, cls=Base)
