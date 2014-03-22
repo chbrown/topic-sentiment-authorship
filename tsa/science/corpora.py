@@ -97,12 +97,13 @@ class MulticlassCorpus(object):
 
     def subset(self, indices):
         '''
-        Return new corpus.
+        Return new corpus, for given subset of rows.
 
         indices can be a boolean mask.
         '''
         corpus = MulticlassCorpus(self.data[indices])
         corpus.labels = self.labels
+        corpus.feature_names = self.feature_names
         corpus.class_lookup = self.class_lookup
         corpus.y = self.y[indices]
         # empty X handling could be better

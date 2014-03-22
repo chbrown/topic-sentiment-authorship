@@ -22,9 +22,8 @@ from tsa.science import timeseries
 from tsa import logging
 logger = logging.getLogger(__name__)
 
-from tsa.science import features
-from tsa.science.plot import plt, fig_path, clear
-# import matplotlib.pyplot as plt
+from tsa.science import features, models
+from tsa.science.plot import plt, figure_path, clear
 
 logger.info('%s finished with imports', __file__)
 
@@ -59,20 +58,6 @@ def explore_coefs(X, coefs):
     Z = linkage(X, 'single', 'correlation')
     dendrogram(Z, color_threshold=0)
     # sklearn.cluster.Ward
-
-
-def bootstrap_model(X, y, n_iter=100, proportion=0.5):
-    # each row in coefs represents the results from a single bootstrap run
-    coefs = np.zeros((n_iter, X.shape[1]))
-    folds = npx.bootstrap(y.size, n_iter=n_iter, proportion=proportion)
-    for fold, (train_indices, _) in itertools.sig_enumerate(folds, logger=logger):
-        # repeats = sum(1 for _, count in Counter(train_indices).items() if count > 1)
-        # logger.debug('%d/%d of random sample are repeats', repeats, len(train_indices))
-        model = linear_model.LogisticRegression(penalty='l2', fit_intercept=False)
-        model.fit(X[train_indices, :], y[train_indices])
-        # IPython.embed(); raise SystemExit(91)
-        coefs[fold, :] = model.coef_.ravel()
-    return coefs
 
 
 def flt(x):
@@ -197,7 +182,7 @@ def errors(analysis_options):
         plt.xlabel('Probability of assigned label')
         plt.ylabel('# of tweets')
         plt.gcf().set_size_inches(8, 5)
-        plt.savefig(fig_path('hist-proba-incorrect.pdf'))
+        plt.savefig(figure_path('hist-proba-incorrect.pdf'))
 
         # hist((np.max(bootstrap_pred_probabilities[~errors_mask], axis=1)-0.5)*2.0)
         plt.cla()
@@ -206,7 +191,7 @@ def errors(analysis_options):
         plt.xlabel('Probability of assigned label')
         plt.ylabel('# of tweets')
         plt.gcf().set_size_inches(8, 5)
-        plt.savefig(fig_path('hist-proba-correct.pdf'))
+        plt.savefig(figure_path('hist-proba-correct.pdf'))
 
     # errors_indices = balanced_indices[errors_mask]
     # pred_pairs = np.column_stack((bootstrap_pred_y, y))
@@ -314,7 +299,7 @@ def errors(analysis_options):
     plt.xlabel('Higher = more confident')
     plt.ylabel('Density')
     plt.gcf().set_size_inches(8, 5)
-    plt.savefig(fig_path('confidence-by-label.pdf'))
+    plt.savefig(figure_path('confidence-by-label.pdf'))
 
 
 
@@ -718,7 +703,7 @@ def standard(analysis_options):
     # for feature in extreme_features:
     #     plt.annotate(corpus.feature_names[feature], xy=(coefs_means[feature], coefs_variances[feature]))
 
-    # plt.savefig(fig_path('coefficient-scatter-%d-bootstrap.pdf' % K))
+    # plt.savefig(figure_path('coefficient-scatter-%d-bootstrap.pdf' % K))
 
     # model.intercept_
 
@@ -799,7 +784,7 @@ def standard(analysis_options):
     plt.plot(subset)
     plt.title('Coefficient variances converging across a %d-iteration bootstrap\n(25 highest and 25 lowest variances)' % subset.shape[0])
     plt.ylim(-0.05, 0.375)
-    plt.savefig(fig_path('cumulative-variances-%d-bootstrap.pdf' % subset.shape[0]))
+    plt.savefig(figure_path('cumulative-variances-%d-bootstrap.pdf' % subset.shape[0]))
 
     plt.cla()
     ordering = coefs_means.argsort()
@@ -808,7 +793,7 @@ def standard(analysis_options):
     subset = cumulative_coefs_means[:, ordering[indices]]
     plt.plot(subset)
     plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])
-    plt.savefig(fig_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
+    plt.savefig(figure_path('cumulative-means-%d-bootstrap.pdf' % subset.shape[0]))
 
 
     # Look into cross_validation.StratifiedKFold
