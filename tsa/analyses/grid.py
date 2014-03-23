@@ -136,27 +136,19 @@ def debate_corpus():
     return corpus
 
 
-
-
-def all_corpora():
+def iter_corpora():
     # yield (corpus, title) tuples
-    yield sb5b_source_corpus(), 'SB-5 For/Against'
     yield source_corpus('rt-polarity'), 'Rotten Tomatoes Polarity'
+    yield sample_corpus(), 'In-sample/Out-of-sample'
+    yield sb5b_source_corpus(), 'SB-5 For/Against'
     yield source_corpus('convote'), 'Congressional vote'
     yield debate_corpus(), 'Debate08'
     yield source_corpus('stanford-politeness-wikipedia'), 'Politeness on Wikipedia'
     yield source_corpus('stanford-politeness-stackexchange'), 'Politeness on StackExchange'
-    yield sample_corpus(), 'In-sample / Out-of-sample'
-
-
-def sb5_corpora():
-    # yield sb5b_source_corpus(), 'SB-5 For/Against'
-    yield sample_corpus(), 'In-sample/Out-of-sample'
-    # yield source_corpus('rt-polarity'), 'Rotten Tomatoes Polarity'
 
 
 def grid_plots(analysis_options):
-    for corpus, title in sb5_corpora():
+    for corpus, title in iter_corpora():
         print title
         grid_plot(corpus)
         plt.title(title)
@@ -165,7 +157,7 @@ def grid_plots(analysis_options):
 
 
 def grid_hists(analysis_options):
-    for corpus, title in all_corpora():
+    for corpus, title in iter_corpora():
         grid_hist(corpus)
         plt.title(title)
         plt.savefig(figure_path('02-%s.pdf' % title))
@@ -240,12 +232,12 @@ def grid_plot(corpus):
     logger.info('X.shape = %s, y.shape = %s', corpus.X.shape, corpus.y.shape)
 
     models = [
-        # ('Logistic Regression (L1)', linear_model.LogisticRegression(penalty='l1')),
+        ('Logistic Regression (L1)', linear_model.LogisticRegression(penalty='l1')),
         ('Logistic Regression (L2)', linear_model.LogisticRegression(penalty='l2')),
         # ('logistic_regression-L2-C100', linear_model.LogisticRegression(penalty='l2', C=100.0)),
         # ('randomized_logistic_regression', linear_model.RandomizedLogisticRegression()),
         # ('SGD', linear_model.SGDClassifier()),
-        # ('Perceptron', linear_model.Perceptron(penalty='l1')),
+        ('Perceptron', linear_model.Perceptron(penalty='l1')),
         # ('perceptron-L2', linear_model.Perceptron(penalty='l2')),
         # ('linear-svc-L2', svm.LinearSVC(penalty='l2')),
         # ('linear-svc-L1', svm.LinearSVC(penalty='l1', dual=False)),
@@ -253,7 +245,7 @@ def grid_plot(corpus):
         #     max_depth=None, min_samples_split=2, min_samples_leaf=1, max_features='auto',
         #     bootstrap=True, oob_score=False, n_jobs=1, random_state=None, verbose=0,
         #     min_density=None, compute_importances=None)),
-    #('Naive Bayes', naive_bayes.MultinomialNB()),
+        ('Naive Bayes', naive_bayes.MultinomialNB()),
         # ('Naive Bayes (Bernoulli)', naive_bayes.BernoulliNB()),
         # ('knn-10', neighbors.KNeighborsClassifier(10)),
         # ('neuralnet', neural_network.BernoulliRBM()),
@@ -312,10 +304,13 @@ def grid_plot(corpus):
     stdout('\n')
 
     df = pd.DataFrame.from_records(rows)
+    # df_agg = df.groupby(['model', 'train']).aggregate(np.mean)
+    # df_agg.plot(x='train', y='accuracy')
 
     counts = np.array(Counter(corpus.y).values(), dtype=float)
     baseline = counts.max() / counts.sum()
     print 'baseline:', baseline
+    styles = distinct_styles()
     for index, group in df.groupby(['model']):
         agg = group.groupby(['train']).aggregate(np.mean)
         print index  # name of model
@@ -327,26 +322,15 @@ def grid_plot(corpus):
         print 'baseline    {0:.2%} & {0:.2%} & {0:.2%}'.format(baseline)
         print 'accuracy    {:.2%} & {:.2%} & {:.2%}'.format(*accuracies)
         print 'improvement {:.2%} & {:.2%} & {:.2%}'.format(*improvements)
-        style = distinct_styles.next()
+        style = styles.next()
         agg.plot(y='accuracy', label=index, **style)
 
-    IPython.embed()
+    # IPython.embed()
 
     plt.legend(loc='best')
     # plt.legend(loc='lower right')
     plt.xlabel('Training set size')
     plt.ylabel('Accuracy')
     plt.ylim(.4, 1.0)
-    # plt.xlim(0, 5000)
+    plt.xlim(0, 10000)
     plt.gcf().set_size_inches(8, 5)
-
-
-def plot_runs(runs):
-    df = pd.DataFrame.from_records(runs)
-    # df_agg = df.groupby(['model', 'train']).aggregate(np.mean)
-    # df_agg.plot(x='train', y='accuracy')
-
-    for index, group in df.groupby(['model']):
-        agg = group.groupby(['train']).aggregate(np.mean)
-        style = distinct_styles.next()
-        agg.plot(y='accuracy', label=index, **style)

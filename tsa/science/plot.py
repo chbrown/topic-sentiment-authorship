@@ -26,7 +26,8 @@ def figure_path(name):
     '''
     dirpath = os.path.expanduser('~/Dropbox/ut/qp/qp-2/figures')
     # make name filesystem-safe
-    name = name.replace('/', ' vs ').replace('  ', ' ').replace(':', '-').replace(' ', '_')
+    # also make latex-friendly, because latex doesn't like underscore in filenames (so weird!)
+    name = name.replace('/', ' vs ').replace('  ', ' ').replace(':', '-').replace(' ', '-').replace('_', '-')
 
     base, ext = os.path.splitext(name)
     if len(ext) <= 1:
@@ -69,7 +70,7 @@ def _styles():
 styles = cycle(_styles())
 
 
-def _distinct_styles():
+def distinct_styles():
     # e.g., for the colorblind
     linewidths = [1, 2, 3]
     linestyles = ['-', ':', '--', '-.']
@@ -81,4 +82,4 @@ def _distinct_styles():
     for linewidth, linestyle, color in zipped:
         yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
 
-distinct_styles = _distinct_styles()
+# distinct_styles_iter = distinct_styles()
