@@ -53,13 +53,8 @@ def plot_hashtag_volumes(analysis_options):
     # alpha = .5
 
     labeled_edges = np.array(npx.bounds(corpus.times[labeled_indices]))
-    # notable dates:
-    kasich_signs = np.datetime64('2011-03-31')
-    signatures_submitted = np.datetime64('2011-06-29')
-    language_decided = np.datetime64('2011-08-03')
-    repealed = np.datetime64('2011-11-08')
-    notable_dates = np.array([kasich_signs, signatures_submitted,
-        language_decided, repealed]).astype('datetime64[s]')
+    from tsa.data.sb5b import notable_dates
+
 
     def plot_selection(X, feature_names):
         '''Just a helper function to scope better'''
@@ -79,7 +74,7 @@ def plot_hashtag_volumes(analysis_options):
         logger.info('Top %d: %r', len(feature_names), feature_names)
         #
         # def add_lines(corpus, selection, window=7, alpha=.5, time_units_per_bin=1, time_unit='D'):
-        style_iter = plot.style_loop()
+        style_iter = plots.style_loop()
         plt.cla()
         plt.stackplot(hashtags_bin_edges.astype(float), hashtags_bins.T, baseline='sym')
 

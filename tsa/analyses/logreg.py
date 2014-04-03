@@ -1,5 +1,4 @@
 # -*- coding: utf-8 -*-
-# universals:
 import IPython
 import scipy
 import numpy as np
@@ -10,20 +9,21 @@ import viz
 from viz.format import quantiles
 from viz.geom import hist
 
-# from collections import Counter
-from sklearn import metrics
+from sklearn import metrics, cross_validation
 from sklearn import linear_model
+from sklearn import naive_bayes
 
+from tsa import stdout, stderr
+from tsa.lib.itertools import sig_enumerate
+from tsa.models import Source, Document, create_session
+from tsa.science import features, models, timeseries
+from tsa.science.corpora import MulticlassCorpus
+from tsa.science.plot import plt, figure_path, distinct_styles, ticker
+from tsa.science.summarization import metrics_dict, metrics_summary
 
-from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
-from tsa.lib import itertools
-from tsa.lib.debugger import shell
-from tsa.science import timeseries
 from tsa import logging
 logger = logging.getLogger(__name__)
 
-from tsa.science import features, models
-from tsa.science.plot import plt, figure_path, clear
 
 logger.info('%s finished with imports', __file__)
 
@@ -62,6 +62,87 @@ def explore_coefs(X, coefs):
 
 def flt(x):
     return '%.2f' % x
+
+
+
+def sb5_confidence(analysis_options):
+    session = create_session()
+    sb5b_documents = session.query(Document).join(Source).\
+        filter(Source.name == 'sb5b').all()
+    corpus = MulticlassCorpus(sb5b_documents)
+    corpus.apply_labelfunc(lambda doc: doc.label or 'Unlabeled')
+    corpus.extract_features(lambda doc: 1, features.intercept)
+    corpus.extract_features(lambda doc: doc.document, features.ngrams,
+        ngram_max=2, min_df=2, max_df=1.0)
+
+    polar_classes = [corpus.class_lookup[label] for label in ['For', 'Against']]
+    polar_indices = np.in1d(corpus.y, polar_classes)
+    labeled_corpus = corpus.subset(polar_indices)
+    # unlabeled_corpus = corpus.subset(corpus.y == corpus.class_lookup['Unlabeled'])
+
+    penalty = 'l2'
+
+    # we want to compare the confidence of the bootstrap on the things it
+    # gets wrong vs. a straight logistic regression
+
+    folds = cross_validation.StratifiedShuffleSplit(labeled_corpus.y, test_size=0.1, n_iter=20)
+    for fold_index, (train_indices, test_indices) in enumerate(folds):
+        train_corpus = labeled_corpus.subset(train_indices)
+        test_corpus = labeled_corpus.subset(test_indices)
+
+        logreg_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
+        logreg_model.fit(train_corpus.X, train_corpus.y)
+        logreg_pred_y = logreg_model.predict(test_corpus.X)
+        logreg_pred_proba = logreg_model.predict_proba(test_corpus.X)
+
+        bootstrap_model = models.Bootstrap(
+            linear_model.LogisticRegression, fit_intercept=False, penalty=penalty)
+        bootstrap_model.fit(train_corpus.X, train_corpus.y, n_iter=200, proportion=0.5)
+
+        bootstrap_pred_y = bootstrap_model.predict(test_corpus.X)
+        bootstrap_pred_proba = bootstrap_model.predict_proba(test_corpus.X)
+        # bootstrap_pred_proba.sum(axis=1) == [1, 1, 1, ...]
+
+        # hmean penalizes extremes; hmean [0.5, 5.0] is 0.5, hmean [0.1, 0.9] is very low
+
+        # plt.cla()
+        # log reg
+        print 'logreg accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, logreg_pred_y))
+        print 'histogram of logreg proba hmean on misclassifications'
+        logreg_proba_hmean = npx.hmean(
+            logreg_pred_proba[test_corpus.y != logreg_pred_y], axis=1)
+        hist(logreg_proba_hmean)
+        print 'logreg max pred mean', logreg_pred_proba.max(axis=1).mean()
+        # print logreg_pred_proba.mean(axis=0)
+        # plt.figure(0)
+        # plt.hist(logreg_pred_proba)
+
+        # bootstrap
+        print 'bootstrap accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, bootstrap_pred_y))
+        print 'histogram of bootstrap proba hmean on misclassifications'
+        bootstrap_proba_hmean = npx.hmean(
+            bootstrap_pred_proba[test_corpus.y != bootstrap_pred_y], axis=1)
+        hist(bootstrap_proba_hmean)
+        # bootstrap_proba_hmean.mean()
+        # print bootstrap_pred_proba.mean(axis=0)
+        # bootstrap_pred_proba.
+        print 'bootstrap max pred mean', bootstrap_pred_proba.max(axis=1).mean()
+        # plt.figure(1)
+        # plt.hist(bootstrap_pred_proba)
+
+
+        # bootstrap_mean_coef = np.mean(bootstrap_model.coefs_, axis=0)
+        # bootstrap_var_coef = np.var(bootstrap_model.coefs_, axis=0)
+
+
+    IPython.embed()
+    # doesn't work:
+    # fig1 = plt.figure()
+    # ax1 = fig1.add_subplot(111)
+    # ax1.hist(xyz_pred_proba)
+
 
 
 def errors(analysis_options):
@@ -131,29 +212,6 @@ def errors(analysis_options):
     # 2: min =  .5, (x - 1/2)*(2/1) == 1 - (1 - x
     # 3: min = .33, (x - 1/3)*(3/2)
     # 4: min = .25, (x - 1/4)*(4/3)
-
-
-    def harmonic_demo():
-        ticks = np.arange(100) + 1.0
-        grid = (ticks / ticks.max())
-        edge = grid.reshape(1, -1)
-
-        a = np.repeat(edge, edge.size, axis=0)
-        b = a.T
-        c = 1 - (a + b)
-        # plt.cla()
-        # plt.imshow(a)
-        # plt.imshow(b)
-        # plt.imshow(c)
-        # plt.cla()
-
-        triples = np.column_stack((a.ravel(), b.ravel(), c.ravel()))
-        pos_triples = triples[c.ravel() > 0]
-        # plt.scatter(pos_triples[:,0], pos_triples[:, 1], c=pos_triples[:, 2])
-        harmonic = npx.hmean(pos_triples, axis=1)
-        plt.cla()
-        plt.scatter(pos_triples[:, 0], pos_triples[:, 1], c=harmonic)
-
 
 
     # plt.plot(a, label='up')
@@ -394,7 +452,7 @@ def oracle(analysis_options):
         # return x + 3
     # np.fromfunction(
 
-    for i, _ in itertools.sig_enumerate(range(100), logger=logger):
+    for i, _ in sig_enumerate(range(100), logger=logger):
         print 'Iteration #%d' % i
         # for each i in the top 100 training examples
         # split indices into:

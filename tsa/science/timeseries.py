@@ -3,20 +3,18 @@ import scipy
 from tsa.science import numpy_ext as npx
 
 
-def binned_timeseries_1d(times, values, time_units_per_bin=1, time_unit='D', statistic='mean'):
-    '''
-    times: an array of datetime64s
-    values: an array of numbers of whatever datatype
-    '''
-    first, last = npx.bounds(times)
-    bins = npx.datespace(first, last, time_units_per_bin, time_unit).astype('datetime64[s]')
-    # valid "statistic" strings: mean, median, count, sum
-    result = scipy.stats.binned_statistic(times.astype(float), values,
-        statistic=statistic, bins=bins.astype(float))
-    bin_statistics, bin_edges, bin_number = result
-    # the resulting statistic is 1 shorter than the bins
-    # return the left edges of the bins, and the resulting statistics
-    return bins[:-1], bin_statistics
+# def binned_timeseries_1d(times, values, time_units_per_bin=1, time_unit='D', statistic='mean'):
+#     '''
+#     '''
+#     first, last = npx.bounds(times)
+#     bins = npx.datespace(first, last, time_units_per_bin, time_unit).astype('datetime64[s]')
+#     # valid "statistic" strings: mean, median, count, sum
+#     result = scipy.stats.binned_statistic(times.astype(float), values,
+#         statistic=statistic, bins=bins.astype(float))
+#     bin_statistics, bin_edges, bin_number = result
+#     # the resulting statistic is 1 shorter than the bins
+#     # return the left edges of the bins, and the resulting statistics
+#     return bins[:-1], bin_statistics
 
 
 def binned_timeseries(times, array, time_units_per_bin=1, time_unit='D', statistic='mean'):
@@ -24,7 +22,12 @@ def binned_timeseries(times, array, time_units_per_bin=1, time_unit='D', statist
     We want to end up with a matrix with the `array` scrunched vertically,
     but the same width.
 
-    Valid "statistic" strings: mean, median, count, sum. Can also be a function.
+    times: an array of datetime64s
+    values: an array of numbers of whatever datatype
+
+    Valid "statistic" strings:
+      mean, median, count, or sum
+      Can also be a function.
     '''
     first, last = npx.bounds(times)
     bins = npx.datespace(first, last, time_units_per_bin, time_unit).astype('datetime64[s]')

@@ -1,27 +1,20 @@
 import IPython
-import sys
+from itertools import groupby
 import numpy as np
 import pandas as pd
-from pprint import pprint
-from collections import Counter
 from tsa.science import numpy_ext as npx
 
-from datetime import datetime
+from collections import Counter
+# from datetime import datetime
 
 import viz
 from viz.geom import hist
 
-from sklearn import cluster
-from sklearn import cross_validation
-from sklearn import decomposition
-from sklearn import ensemble
+from sklearn import metrics, cross_validation
 from sklearn import linear_model
-from sklearn import metrics
 from sklearn import naive_bayes
-from sklearn import neighbors
-from sklearn import neural_network
-from sklearn import qda
 from sklearn import svm
+# from sklearn import cluster, decomposition, ensemble, neighbors, neural_network, qda
 # from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
 # from tsa.lib.text import CountVectorizer
@@ -29,15 +22,14 @@ from sklearn import svm
 # from sklearn.feature_selection import chi2, f_classif, f_regression
 
 from tsa import stdout, stderr
-from tsa.lib import cache, tabular, itertools
+from tsa.lib import tabular, datetime_extra
 from tsa.lib.timer import Timer
-from tsa.science import features, models
-from tsa.science.corpora import MulticlassCorpus
-from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
-from tsa.science.plot import plt, figure_path, clear, distinct_styles
-from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
-from tsa.data.rt_polaritydata import read_MulticlassCorpus as read_RT_MulticlassCorpus
 from tsa.models import Source, Document, create_session
+from tsa.science import features, models, timeseries
+from tsa.science.corpora import MulticlassCorpus
+from tsa.science.plot import plt, figure_path, distinct_styles, ticker
+from tsa.science.summarization import metrics_dict, metrics_summary
+# from tsa.science.summarization import explore_mispredictions, explore_uncertainty
 
 from tsa import logging
 logger = logging.getLogger(__name__)
@@ -69,17 +61,8 @@ def database_overview(analysis_options):
         print
 
 
-def source_documents(source_name):
-    DBSession = create_session()
-    return DBSession.query(Document).\
-        join(Source, Source.id == Document.source_id).\
-        filter(Source.name == source_name).\
-        filter(Document.label != None).\
-        order_by(Document.published).all()
-
-
 def source_corpus(source_name):
-    documents = source_documents(source_name)
+    documents = Source.from_name(source_name)
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
     # assume the corpus is suitably balanced
@@ -93,7 +76,7 @@ def source_corpus(source_name):
 
 def sb5b_source_corpus():
     # mostly like source_corpus except it selects just For/Against labels
-    documents = source_documents('sb5b')
+    documents = Source.from_name('sb5b')
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
     # balanced_indices = npx.balance(
@@ -156,11 +139,221 @@ def grid_plots(analysis_options):
         plt.cla()
 
 
+def representation(analysis_options):
+    corpus = sb5b_source_corpus()
+
+    print 'Tweets per person, by label'
+
+    for class_name in ['For', 'Against']:
+        print 'Class =', class_name
+        indices = corpus.y == corpus.class_lookup[class_name]
+        keyfunc = lambda doc: doc.details['Author'].split()[0].lower()
+        data = sorted(corpus.data[indices], key=keyfunc)
+        author_groups = groupby(data, keyfunc)
+        # map values . sum
+        lengths = np.array([len(list(group_iter)) for author, group_iter in author_groups])
+        # print 'Hist for authors with more than one tweet:'
+        # hist(lengths[lengths > 1])
+        print 'Average # of documents per user', lengths.mean()
+        inlier_max = np.percentile(lengths, 99)
+        inliers = lengths[lengths < inlier_max]
+        print '  ditto excluding 99%-file ({:d}): {:.1f}'.format(
+            lengths.size - inliers.size, inliers.mean())
+
+    IPython.embed()
+
+
+
+def corpus_sandbox(analysis_options):
+    print 'Exploring SB-5 corpus'
+    session = create_session()
+    sb5b_documents = session.query(Document).join(Source).\
+        filter(Source.name == 'sb5b').all()
+
+    print 'Found %d documents' % len(sb5b_documents)
+
+    rows = [dict(label=document.label, inferred=bool(document.details.get('Inferred')), source=document.details.get('Source', 'NA'))
+            for document in sb5b_documents]
+    df = pd.DataFrame.from_records(rows)
+
+    # df_agg = df.groupby(['label', 'inferred'])
+
+    # df.pivot_table(values=['label'], rows=['inferred'], aggfunc=[len])
+    df.pivot_table(rows=['label', 'inferred'], aggfunc=[len])
+    df.pivot_table(rows=['label', 'source'], aggfunc=[len])
+    df.pivot_table(rows=['source'], aggfunc=[len])
+    # df_agg.plot(x='train', y='accuracy')
+
+    for document in sb5b_documents:
+        # 'weareohio' in document.document.lower(), .document
+        print document.details.get('Source'), document.label
+
+
+    IPython.embed()
+
+
+def sb5_extrapolate(analysis_options):
+    session = create_session()
+    sb5b_documents = session.query(Document).join(Source).\
+        filter(Source.name == 'sb5b').all()
+    full_corpus = MulticlassCorpus(sb5b_documents)
+    full_corpus.apply_labelfunc(lambda doc: doc.label or 'Unlabeled')
+    full_corpus.extract_features(lambda doc: 1, features.intercept)
+    full_corpus.extract_features(lambda doc: doc.document, features.ngrams,
+        ngram_max=2, min_df=2, max_df=1.0)
+
+    full_corpus_times = np.array([doc.published for doc in full_corpus.data]).astype('datetime64[s]')
+
+    polar_classes = [full_corpus.class_lookup[label] for label in ['For', 'Against']]
+    polar_indices = np.in1d(full_corpus.y, polar_classes)
+    # balanced_indices = npx.balance(
+    #     full_corpus.y == full_corpus.class_lookup['For'],
+    #     full_corpus.y == full_corpus.class_lookup['Against'])
+
+    labeled_corpus = full_corpus.subset(polar_indices)
+    labeled_times = full_corpus_times[polar_indices]
+    unlabeled_corpus = full_corpus.subset(full_corpus.y == full_corpus.class_lookup['Unlabeled'])
+
+    # pos_label = corpus.class_lookup['For']
+    penalty = 'l1'
+
+    logreg_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
+    logreg_model.fit(labeled_corpus.X, labeled_corpus.y)
+    labeled_pred_y = logreg_model.predict(labeled_corpus.X)
+    print 'logreg_model'
+    print '  {:.2%} coefs == 0'.format((logreg_model.coef_ == 0).mean())
+    print '  accuracy on training set', metrics.accuracy_score(labeled_corpus.y, labeled_pred_y)
+
+    unlabeled_pred_y = logreg_model.predict(unlabeled_corpus.X)
+    full_pred_y = logreg_model.predict(full_corpus.X)
+
+    # histogram of for/against across entire period
+    labeled_time_bounds = np.array(npx.bounds(labeled_times))
+
+    from tsa.data.sb5b import notable_events
+    notable_events_labels, notable_events_dates = zip(*notable_events)
+
+    from tsa.science.features import liwc
+    liwc_counts, liwc_categories = liwc([doc.document for doc in full_corpus.data])
+
+
+    def time_hist(label, times, values,
+            time_units_per_bin=2, time_unit='D', statistic='count', **style_args):
+        bin_edges, bin_values = timeseries.binned_timeseries(
+            times, values,
+            time_units_per_bin=time_units_per_bin,
+            time_unit=time_unit, statistic=statistic)
+        plt.plot(bin_edges, bin_values, label=label, **style_args)
+
+
+    # negemo_counts = liwc_counts[:, liwc_categories.index('negemo')].toarray()
+    # hist(posemo_counts)
+
+    # time_hist('negemo', full_corpus_times, negemo_counts, statistic='sum', **styles.next())
+
+    for liwc_category in ['posemo', 'negemo']:
+        plt.cla()
+        styles = distinct_styles()
+        # styles.next()
+        counts = liwc_counts[:, liwc_categories.index(liwc_category)].toarray()
+        time_hist('Overall %s' % liwc_category, full_corpus_times, counts,
+            statistic='sum', **styles.next())
+        for label in ['For', 'Against']:
+            indices = full_pred_y == full_corpus.class_lookup[label]
+            time_hist('%s-class %s' % (label, liwc_category),
+                full_corpus_times[indices], counts[indices], statistic='sum', **styles.next())
+        plt.title('LIWC category: %s' % liwc_category)
+        plt.ylabel('Frequency')
+        plt.xlabel('Date')
+        axes = plt.gca()
+        axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
+        axes.grid(False)
+        plt.xlim(np.array(npx.bounds(full_corpus_times)).astype(float))
+        plt.gcf().set_size_inches(8, 5)
+        plt.legend(loc='best')
+        plt.savefig(figure_path('liwc-%s-for-vs-against.pdf' % liwc_category))
+
+    print 'done'
+    raise IPython.embed()
+
+    # convert vector to column matrix
+    values = full_pred_y.reshape((-1, 1))
+
+    plt.cla()
+
+    for label in ['For', 'Against']:
+        indices = full_pred_y == full_corpus.class_lookup[label]
+        # by week
+        bin_edges, bin_values = timeseries.binned_timeseries(
+            full_corpus_times[indices], values[indices],
+            time_units_per_bin=7, time_unit='D', statistic='count')
+        bin_values = bin_values.ravel()
+        # bin_values = npx.exponential_decay(bin_values.ravel(), window=14, alpha=0.75)
+        plt.plot(bin_edges, bin_values, label=label, **styles.next())
+
+    # datetime64_formatter = datetime_extra.datetime64_formatter
+    axes = plt.gca()
+    axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
+    axes.grid(False)
+
+    # plt.vlines(notable_dates.astype(float), *auto_ylim)
+    plt.legend(loc='best')
+    plt.title('For / Against labels throughout corpus')
+    plt.ylabel('Frequency')
+    plt.xlabel('Date')
+    plt.axvspan(*labeled_time_bounds.astype(float), edgecolor='none', facecolor='g', alpha=0.05)
+    plt.gcf().set_size_inches(8, 5)
+    plt.savefig(figure_path('for-against-extrapolated.pdf'))
+
+    auto_ylim = plt.ylim()
+    # auto_xlim = plt.xlim()
+    # plt.vlines(np.array(notable_events_dates).astype('datetime64[s]').astype(float),
+    #     *auto_ylim, colors='k')
+
+
+    for i, (label, date) in enumerate(notable_events):
+        # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.axvline
+        x = date.astype('datetime64[s]').astype(float)
+        plt.axvline(x, color='k')
+        plt.text(x, auto_ylim[1]*(0.9 - i * 0.1), '- ' + label)
+
+
+
+    IPython.embed()
+
+
+def sb5_self_train(analysis_options):
+
+
+    incestuous_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
+    incestuous_model.fit(unlabeled_corpus.X, unlabeled_pred_y)
+    # apply model to data we know for sure
+    incestuous_pred_y = incestuous_model.predict(labeled_corpus.X)
+    # evaluate predictions
+    # print metrics_summary(labeled_corpus.y, incestuous_pred_y)
+    print 'accuracy on training set after extrapolation', metrics.accuracy_score(labeled_corpus.y, incestuous_pred_y)
+
+    # we want to compare the confidence of the bootstrap on the things it gets wrong vs. a straight logistic regression
+
+    bootstrap_model = models.Bootstrap(linear_model.LogisticRegression,
+        fit_intercept=False, penalty=penalty, C=1.0)
+    bootstrap_model.fit(labeled_corpus.X, labeled_corpus.y, n_iter=100, proportion=1.0)
+    bootstrap_model.predict(labeled_corpus.X)
+
+    bootstrap_mean_coef = np.mean(bootstrap_model.coefs_, axis=0)
+    bootstrap_var_coef = np.var(bootstrap_model.coefs_, axis=0)
+    print 'bootstrap_model'
+    hist(bootstrap_mean_coef)
+    print '  {:.2%} coefs == 0'.format((bootstrap_mean_coef == 0).mean())
+
+
+
 def grid_hists(analysis_options):
-    for corpus, title in iter_corpora():
+    for corpus, corpus_name in iter_corpora():
         grid_hist(corpus)
-        plt.title(title)
-        plt.savefig(figure_path('02-%s.pdf' % title))
+        plt.title(corpus_name)
+        plt.gcf().set_size_inches(8, 5)
+        plt.savefig(figure_path('grid-hist-%s.pdf' % corpus_name))
         plt.cla()
 
 
@@ -170,17 +363,73 @@ def grid_hist(corpus):
 
     # model = linear_model.RandomizedLogisticRegression(penalty='l2')
     # http://scikit-learn.org/stable/modules/generated/sklearn.linear_model.RandomizedLogisticRegression.html
-    bootstrap_coefs = models.bootstrap(corpus.X, corpus.y, n_iter=100, proportion=1.0)
+    bootstrap_coefs = models.Bootstrap(corpus.X, corpus.y, n_iter=100, proportion=1.0, penalty='l1', C=1.0)
     coefs_means = np.mean(bootstrap_coefs, axis=0)
     coefs_variances = np.var(bootstrap_coefs, axis=0)
 
+    bootstrap_coefs = bootstrap_model(X, y, n_iter=n_iter, proportion=0.5)
+    fit_intercept=False, penalty=penalty, C=C
+
     logger.info('coefs_means.shape = %s, coefs_variances.shape = %s', coefs_means.shape, coefs_variances.shape)
 
-    plt.hist(coefs_means, bins=25)
-    plt.xlabel('Frequency of bootstrapped log. reg. coefficients')
-    plt.gcf().set_size_inches(8, 5)
-    # plt.legend(loc='best')
-    # plt.ylim(.4, 1.0)
+    nonzero = coefs_means != 0
+    substantial = np.abs(coefs_means) > 0.1
+    print 'nonzero coef density = {:.2%}'.format(nonzero.mean())
+    print '> 0.1 coef density = {:.2%}'.format(substantial.mean())
+    means = coefs_means[nonzero]
+
+    plt.cla()
+    plt.hist(means, bins=25, normed=True)
+    plt.xlabel('Frequency of (L1 Logistic Regression) bootstrapped coefficients')
+    plt.xlim(-2, 2)
+
+
+    raise IPython.embed()
+
+
+def harmonic_demo(analysis_options):
+    print 'This prints a sort of Dirichlet / joint probability space'
+    print 'and displays the value of the harmonic mean'
+
+    ticks = np.arange(100) + 1.0
+    grid = (ticks / ticks.max())
+    edge = grid.reshape(1, -1)
+
+    # 2-dimensional
+    plt.cla()
+    x = grid
+    y = 1 - x
+    pairs = np.column_stack((x.ravel(), y.ravel()))
+    pos_pairs = pairs[y.ravel() > 0]
+    # each row in `pairs` sums to 1
+    xy_harmonic = npx.hmean(pos_pairs, axis=1)
+    plt.scatter(pos_pairs[:, 0], xy_harmonic, c=xy_harmonic, linewidths=0)
+    plt.xlabel('x, y = 1 - x')
+    plt.ylabel('Harmonic mean of (x, y)')
+    plt.title('2D (color and height are equivalent)')
+
+
+    # 3-dimensional
+    plt.cla()
+    a = np.repeat(edge, edge.size, axis=0)
+    b = a.T
+    c = 1 - (a + b)
+    triples = np.column_stack((a.ravel(), b.ravel(), c.ravel()))
+    pos_triples = triples[c.ravel() > 0]
+    abc_harmonic = npx.hmean(pos_triples, axis=1)
+    plt.scatter(pos_triples[:, 0], pos_triples[:, 1], c=abc_harmonic, linewidths=0)
+    plt.xlabel('a')
+    plt.ylabel('b')
+    plt.title('3D')
+    plt.suptitle('color = c = 1 - a - b (where c > 0)')
+
+    IPython.embed()
+
+
+
+def many_models(analysis_options):
+    # recreate 10fold-multiple-models.pdf
+    pass
 
 
 def sample_errors(analysis_options):
@@ -189,7 +438,7 @@ def sample_errors(analysis_options):
     logger.info('X.shape = %s, y.shape = %s', corpus.X.shape, corpus.y.shape)
 
     folds = cross_validation.StratifiedShuffleSplit(corpus.y, test_size=0.5, n_iter=20)
-    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+    for fold_index, (train_indices, test_indices) in enumerate(folds):
         train_corpus = corpus.subset(train_indices)
         test_corpus = corpus.subset(test_indices)
 

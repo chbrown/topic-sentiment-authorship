@@ -36,7 +36,7 @@ def mallet(corpus, num_topics=100):
     bin/mallet train-topics --input topic-input.mallet --num-topics 100 --output-state topic-state.gz
 
     '''
-    extra_stopwords = ['http', 'https', 't', 'co']
+    extra_stopwords = ['http', 'https', 't', 'co', 'bit', 'ly']
 
     # _, svmlight_tempfile_path = tempfile.mkstemp(suffix='.svmlight')
     # print 'writing svmlight file', svmlight_tempfile_path
@@ -55,6 +55,7 @@ def mallet(corpus, num_topics=100):
     print 'writing mallet format to {:s}'.format(mallet_tempfile_path)
     print subprocess.check_output(['mallet', 'import-file',
         '--keep-sequence',  # required for topic modeling
+        '--token-regex', r'#?\w+',
         '--remove-stopwords',
         '--extra-stopwords', stopwords_tempfile_path,
         '--input', data_tempfile_path,

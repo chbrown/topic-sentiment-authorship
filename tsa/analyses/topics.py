@@ -2,18 +2,19 @@ import IPython
 from itertools import islice
 from collections import defaultdict
 import numpy as np
-from tsa.science import numpy_ext as npx
-
 from scipy import sparse
-
 import gensim
 from gensim.utils import simple_preprocess
 
+from tsa.lib import cache
+from tsa.models import Source
+from tsa.science import features, models, numpy_ext as npx
+from tsa.science.corpora import MulticlassCorpus
+from tsa.science.summarization import explore_topics
+from tsa.science.mallet import mallet
 from tsa import logging
 logger = logging.getLogger(__name__)
-from tsa.lib import cache
 
-from tsa.science.summarization import explore_topics
 
 def to_gensim(array):
     # convert a csr corpus to what gensim wants: a list of list of tuples
@@ -33,6 +34,21 @@ def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
     topic_model = gensim.models.LdaModel(corpus,
         id2word=vocab, num_topics=num_topics, passes=1)
     return topic_model
+
+
+def sb5_mallet(analysis_options):
+    documents = Source.from_name('sb5b')
+
+    corpus = MulticlassCorpus(documents)
+    corpus.apply_labelfunc(lambda doc: doc.label)
+    # polar_indices = (corpus.y == corpus.class_lookup['For']) | (corpus.y == corpus.class_lookup['Against'])
+    # corpus = corpus.subset(polar_indices)
+    # corpus = corpus.subset(np.arange(1000))
+    # ngram_max=2, min_df=0.001, max_df=0.95
+    # corpus.extract_features(lambda doc: doc.document, features.ngrams,
+    #     ngram_max=2, min_df=2, max_df=1.0)
+    # print 'corpus', corpus.X.shape, corpus.y.shape
+    mallet(corpus, num_topics=20)
 
 
 def links_gensim(analysis_options):

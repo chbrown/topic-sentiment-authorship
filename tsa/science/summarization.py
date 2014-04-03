@@ -7,30 +7,27 @@ import logging
 logger = logging.getLogger(__name__)
 
 
-def metrics_summary(y_true, y_pred):
+def metrics_summary(y_true, y_pred, labels=None, pos_label=1, average=None):
     return ', '.join([
         'accuracy: {accuracy:.2%}',
         'P/R: {precision:.4f}/{recall:.4f}',
         'F1: {f1:.4f}',
         # '0-1 loss: {zero_one_loss:.4f}',
-    ]).format(**metrics_dict(y_true, y_pred))
+    ]).format(**metrics_dict(y_true, y_pred, pos_label=pos_label))
 
 
-def metrics_dict(y_true, y_pred, pos_label=1):
-    precision, recall, f1, support = metrics.precision_recall_fscore_support(y_true, y_pred,
-        pos_label=pos_label, labels=[pos_label])
-    return dict(
-        accuracy=metrics.accuracy_score(y_true, y_pred),
-        precision=precision,
-        recall=recall,
-        f1=f1,
-        # hamming loss is only different from 0-1 loss in multi-label scenarios
-        # hamming_loss=metrics.hamming_loss(y_true, y_pred),
-        # jaccard_similarity is only different from the accuracy in multi-label scenarios
-        # jaccard_similarity=metrics.jaccard_similarity_score(y_true, y_pred),
-        # zero_one_loss is (1.0 - accuracy) in multi-label scenarios
-        # zero_one_loss=metrics.zero_one_loss(y_true, y_pred),
-    )
+def metrics_dict(y_true, y_pred, labels=None, pos_label=1, average=None):
+    prfs_values = metrics.precision_recall_fscore_support(y_true, y_pred,
+        labels=labels, pos_label=pos_label, average=average)
+    prfs_keys = ('precision', 'recall', 'f1', 'support')
+    accuracy = metrics.accuracy_score(y_true, y_pred)
+    # hamming loss is only different from 0-1 loss in multi-label scenarios
+    # hamming_loss=metrics.hamming_loss(y_true, y_pred),
+    # jaccard_similarity is only different from the accuracy in multi-label scenarios
+    # jaccard_similarity=metrics.jaccard_similarity_score(y_true, y_pred),
+    # zero_one_loss is (1.0 - accuracy) in multi-label scenarios
+    # zero_one_loss=metrics.zero_one_loss(y_true, y_pred),
+    return dict(zip(prfs_keys, prfs_values) + [('accuracy', accuracy)])
 
 
 def explore_mispredictions(test_X, test_y, model, test_indices, label_names, documents):

@@ -20,6 +20,10 @@ from tsa import logging
 logger = logging.getLogger(__name__)
 
 
+def intercept(documents):
+    return (np.ones((len(documents), 1)), ['#intercept#'])
+
+
 def ngrams(documents, min_df=0.01, max_df=0.99, ngram_max=2):
     '''
     ngram features

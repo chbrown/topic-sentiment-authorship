@@ -46,8 +46,10 @@ def dist(a):
     return a / a.sum()
 
 def exponential_decay(a, window=10, alpha=.5):
-    # smoother
-    # returns vector as long as input a. trails off to the left
+    # smoothing
+    # returns vector as long as input a
+    # trails off to the left
+    # alpha = 1.0 is very smooth. alpha = 0.01 is very faithful
     distribution = dist(alpha**np.arange(window))
     # distribution now sums to one, and each item is roughly alpha*previous_item
     window_distribution = distribution[::-1]

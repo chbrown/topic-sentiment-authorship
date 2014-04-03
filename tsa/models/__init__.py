@@ -2,13 +2,13 @@ from sqlalchemy import Table, orm
 
 from tsa.models.meta import Model, metadata, create_session
 
-DBSession = create_session()
+# DBSession = create_session()
 
 
 class Endpoint(Model):
     __table__ = Table('endpoints', metadata, autoload=True)
 
-    def trail(self, Session=DBSession):
+    def trail(self, session):
         # trail includes the original url at the far right of the trail
         if self.parent_id:
             parent = Session.query(Endpoint).get(self.parent_id)
@@ -39,6 +39,16 @@ class Endpoint(Model):
 
 class Source(Model):
     __table__ = Table('sources', metadata, autoload=True)
+
+    @classmethod
+    def from_name(cls, name):
+        session = create_session()
+        return session.query(Document).\
+            join(Source, Source.id == Document.source_id).\
+            filter(Source.name == name).\
+            filter(Document.label != None).\
+            order_by(Document.published).all()
+
 
 
 class Document(Model):

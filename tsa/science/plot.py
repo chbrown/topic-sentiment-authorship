@@ -7,7 +7,7 @@ logger = logging.getLogger(__name__)
 from itertools import cycle, izip
 import matplotlib.cm as colormap
 import matplotlib.pyplot as plt
-# import matplotlib.ticker as ticker
+import matplotlib.ticker as ticker
 # import matplotlib.dates as mdates
 plt.rcParams['interactive'] = True
 plt.rcParams['axes.grid'] = True
@@ -74,7 +74,9 @@ def distinct_styles():
     # e.g., for the colorblind
     linewidths = [1, 2, 3]
     linestyles = ['-', ':', '--', '-.']
-    colors = colormap.rainbow(np.linspace(1, 0, 6))
+    # array([0, 1, 2, 3, 4, 5])
+    color_space = np.linspace(1, 0, 6)[np.array([0, 4, 2, 5, 3, 1])]
+    colors = colormap.rainbow(color_space)
     # period = 60
     # markers = ['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd']
 

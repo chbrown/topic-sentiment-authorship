@@ -49,6 +49,10 @@ class MulticlassCorpus(object):
         return len(self.data)
 
 
+    def __repr__(self):
+        return '<MulticlassCorpus X = {:s}, y = {:s}>'.format(self.X.shape, self.y.shape)
+
+
     def apply_labelfunc(self, labelfunc):
         '''
         Updates self.labels and sets self.y based on self.data and the given label getter function.
@@ -78,15 +82,17 @@ class MulticlassCorpus(object):
         original_ncolumns = self.X.shape[1]
         # incorporate / merge X
         if self.X.size == 0:
-            # only merge non-empty matrices
+            # can skip merging non-empty matrices
             self.X = X
         elif sparse.issparse(self.X) or sparse.issparse(X):
-            self.X = sparse.hstack((self.X, X))
+            # sparse.hstack output is always COO, it seems
+            self.X = sparse.hstack((self.X, X)).tocsr()
         else:
             self.X = np.hstack((self.X, X))
         # merge feature_names
         self.feature_names = np.concatenate((self.feature_names, feature_names))
         # return the indices of the added columns
+        # import IPython; IPython.embed()
         return np.arange(original_ncolumns, self.X.shape[1])
 
 
@@ -107,8 +113,9 @@ class MulticlassCorpus(object):
         corpus.class_lookup = self.class_lookup
         corpus.y = self.y[indices]
         # empty X handling could be better
-        if self.X.shape[0] == len(self):
-            corpus.X = self.X[indices, :]
-        else:
-            corpus.X = self.X
+        corpus.X = self.X
+        if corpus.X.size > 0 and corpus.X.shape[0] == len(self):
+            if sparse.issparse(corpus.X):
+                corpus.X = corpus.X.tocsr()
+            corpus.X = corpus.X[indices, :]
         return corpus
