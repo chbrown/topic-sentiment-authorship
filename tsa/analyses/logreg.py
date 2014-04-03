@@ -125,17 +125,12 @@ def sb5_confidence(analysis_options):
         bootstrap_proba_hmean = npx.hmean(
             bootstrap_pred_proba[test_corpus.y != bootstrap_pred_y], axis=1)
         hist(bootstrap_proba_hmean)
-        # bootstrap_proba_hmean.mean()
-        # print bootstrap_pred_proba.mean(axis=0)
-        # bootstrap_pred_proba.
         print 'bootstrap max pred mean', bootstrap_pred_proba.max(axis=1).mean()
         # plt.figure(1)
         # plt.hist(bootstrap_pred_proba)
 
-
         # bootstrap_mean_coef = np.mean(bootstrap_model.coefs_, axis=0)
         # bootstrap_var_coef = np.var(bootstrap_model.coefs_, axis=0)
-
 
     IPython.embed()
     # doesn't work:
@@ -587,8 +582,7 @@ def confidence(analysis_options):
     # print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
     #     test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
 
-    biased_model = linear_model.LogisticRegression(
-        penalty='l2', fit_intercept=False)
+    biased_model = linear_model.LogisticRegression(penalty='l2', fit_intercept=False)
     biased_model.fit(test_X, test_y)
     biased_pred_probabilities = biased_model.predict_proba(test_X)
     # biased_pred_y = biased_model.predict(test_X)
@@ -610,8 +604,6 @@ def confidence(analysis_options):
     # np.linspace(0, 10, )
     # for i in range:
     IPython.embed(); raise SystemExit(91)
-
-
 
     bounds = npx.bounds(biased_transformed)
 

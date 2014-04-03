@@ -48,7 +48,7 @@ def sb5_mallet(analysis_options):
     # corpus.extract_features(lambda doc: doc.document, features.ngrams,
     #     ngram_max=2, min_df=2, max_df=1.0)
     # print 'corpus', corpus.X.shape, corpus.y.shape
-    mallet(corpus, num_topics=20)
+    mallet(corpus, num_topics=4)
 
 
 def links_gensim(analysis_options):

@@ -212,20 +212,21 @@ def sb5_extrapolate(analysis_options):
 
     labeled_corpus = full_corpus.subset(polar_indices)
     labeled_times = full_corpus_times[polar_indices]
-    unlabeled_corpus = full_corpus.subset(full_corpus.y == full_corpus.class_lookup['Unlabeled'])
+    # unlabeled_corpus = full_corpus.subset(full_corpus.y == full_corpus.class_lookup['Unlabeled'])
 
     # pos_label = corpus.class_lookup['For']
     penalty = 'l1'
 
     logreg_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
     logreg_model.fit(labeled_corpus.X, labeled_corpus.y)
-    labeled_pred_y = logreg_model.predict(labeled_corpus.X)
-    print 'logreg_model'
-    print '  {:.2%} coefs == 0'.format((logreg_model.coef_ == 0).mean())
-    print '  accuracy on training set', metrics.accuracy_score(labeled_corpus.y, labeled_pred_y)
+    # labeled_pred_y = logreg_model.predict(labeled_corpus.X)
+    # print 'logreg_model'
+    # print '  {:.2%} coefs == 0'.format((logreg_model.coef_ == 0).mean())
+    # print '  accuracy on training set', metrics.accuracy_score(labeled_corpus.y, labeled_pred_y)
 
-    unlabeled_pred_y = logreg_model.predict(unlabeled_corpus.X)
+    # unlabeled_pred_y = logreg_model.predict(unlabeled_corpus.X)
     full_pred_y = logreg_model.predict(full_corpus.X)
+    full_pred_proba = logreg_model.predict_proba(full_corpus.X)
 
     # histogram of for/against across entire period
     labeled_time_bounds = np.array(npx.bounds(labeled_times))
@@ -233,17 +234,40 @@ def sb5_extrapolate(analysis_options):
     from tsa.data.sb5b import notable_events
     notable_events_labels, notable_events_dates = zip(*notable_events)
 
+    IPython.embed()
+
+    full_pred_proba_max = full_pred_proba.max(axis=1)
+    # full_pred_proba_hmean = npx.hmean(full_pred_proba, axis=1)
+    plt.cla()
+    styles = distinct_styles()
+    time_hist('', full_corpus_times, full_pred_proba_max.reshape(-1, 1),
+        statistic='mean', **styles.next())
+    # plt.legend(loc='best')
+    plt.title('Average certainty of prediction')
+    plt.xlabel('Date')
+    plt.axvspan(*labeled_time_bounds.astype(float), edgecolor='none', facecolor='g', alpha=0.05)
+    plt.gcf().set_size_inches(8, 5)
+    axes = plt.gca()
+    axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
+    plt.savefig(figure_path('predict-proba-extrapolated.pdf'))
+
+
+
+def time_hist(label, times, values,
+        time_units_per_bin=2, time_unit='D', statistic='count', **style_args):
+    bin_edges, bin_values = timeseries.binned_timeseries(
+        times, values,
+        time_units_per_bin=time_units_per_bin,
+        time_unit=time_unit, statistic=statistic)
+    plt.plot(bin_edges, bin_values, label=label, **style_args)
+
+
+
+def liwc_over_time():
     from tsa.science.features import liwc
     liwc_counts, liwc_categories = liwc([doc.document for doc in full_corpus.data])
 
 
-    def time_hist(label, times, values,
-            time_units_per_bin=2, time_unit='D', statistic='count', **style_args):
-        bin_edges, bin_values = timeseries.binned_timeseries(
-            times, values,
-            time_units_per_bin=time_units_per_bin,
-            time_unit=time_unit, statistic=statistic)
-        plt.plot(bin_edges, bin_values, label=label, **style_args)
 
 
     # negemo_counts = liwc_counts[:, liwc_categories.index('negemo')].toarray()
@@ -273,7 +297,6 @@ def sb5_extrapolate(analysis_options):
         plt.legend(loc='best')
         plt.savefig(figure_path('liwc-%s-for-vs-against.pdf' % liwc_category))
 
-    print 'done'
     raise IPython.embed()
 
     # convert vector to column matrix
@@ -295,6 +318,12 @@ def sb5_extrapolate(analysis_options):
     axes = plt.gca()
     axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
     axes.grid(False)
+
+
+def sb5_extrapolate_labels():
+    from tsa.data.sb5b import notable_events
+    notable_events_labels, notable_events_dates = zip(*notable_events)
+
 
     # plt.vlines(notable_dates.astype(float), *auto_ylim)
     plt.legend(loc='best')
@@ -429,7 +458,25 @@ def harmonic_demo(analysis_options):
 
 def many_models(analysis_options):
     # recreate 10fold-multiple-models.pdf
-    pass
+    filepath = 'data/incremental-training-multiple-models-10folds.tsv'
+    table = pd.io.parsers.read_table(filepath)
+
+    # xtab = table.pivot_table(values=['accuracy'], rows=['model', 'train'], aggfunc=[len, np.mean])
+
+    plt.cla()
+    styles = distinct_styles()
+    for model_name, model_table in table.groupby(['model']):
+        xtab = model_table.pivot_table(values=['accuracy'], rows=['train'], aggfunc=[np.mean])
+        plt.plot(xtab.index, xtab['mean'], label=model_name, **styles.next())
+
+    plt.ylabel('Accuracy')
+    plt.xlabel('# of tweets in training set')
+    plt.legend(loc='best')
+
+    # hrrm, kind of ugly
+
+    IPython.embed()
+
 
 
 def sample_errors(analysis_options):
