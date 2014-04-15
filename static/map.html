@@ -20,22 +20,22 @@
 </head>
 <body ng-app="app" ng-controller="mapCtrl">
   <nav>
-    <div>
+    <div style="font-size: 90%">
       <label style="display: none">
         <input type="checkbox" ng-model="$storage.for_against"> Tweets
       </label>
-      <label style="display: none">
-        <input type="checkbox" ng-model="$storage.population"> Population
-      </label>
-      <label>
-        <div style="font-weight: 800; font-size: 90%">Label source</div>
-        <select ng-model="$storage.tweets_property"
-          ng-options="opt.value as opt.key for opt in tweets_properties"></select>
-      </label>
-      <label>
-        <div style="font-weight: 800; font-size: 90%">Scaling factor</div>
-        <select ng-model="$storage.scale_factor"
-          ng-options="opt.value as opt.key for opt in scale_factors"></select>
+
+      <div><b>Label source</b></div>
+      <select ng-model="$storage.tweets_property"
+        ng-options="opt.value as opt.key for opt in tweets_properties"></select>
+
+      <div><b>Scaling factor</b>
+        <label>
+          <input type="checkbox" ng-model="$storage.scale_log"> log
+        </label>
+      </div>
+      <select ng-model="$storage.scale_factor"
+        ng-options="opt.value as opt.key for opt in scale_factors"></select>
       </label>
     </div>
   </nav>
@@ -80,6 +80,7 @@ angular.module('app', ['ngStorage'])
   $scope.$storage = $localStorage.$default({
     tweets_property: 'tweets',
     scale_factor: 'tweets',
+    scale_log: true,
   });
 
   $scope.tweets_properties = [
@@ -92,16 +93,17 @@ angular.module('app', ['ngStorage'])
   ];
 
   var redraw = function() {
-    draw($scope.$storage.tweets_property, $scope.$storage.scale_factor);
+    draw($scope.$storage.tweets_property, $scope.$storage.scale_factor, $scope.$storage.scale_log);
   }
 
   $scope.$watch('$storage.tweets_property', redraw);
   $scope.$watch('$storage.scale_factor', redraw);
+  $scope.$watch('$storage.scale_log', redraw);
   // svg.selectAll('.for_against').style('visibility', val ? 'visible' : 'hidden')
 });
 
-function draw(tweets_property, scale_factor) {
-  // console.log('drawing', tweets_property, scale_factor);
+function draw(tweets_property, scale_factor, scale_log) {
+  console.log('drawing', tweets_property, scale_factor);
   d3.json('./oh-counties.topo.json', function(err, map) {
     var obj = map.objects['stdin'],
         tf = map.transform,
@@ -110,51 +112,71 @@ function draw(tweets_property, scale_factor) {
         dx = tf.translate[0],
         dy = tf.translate[1];
 
-    var counties = topojson.feature(map, obj);
+    // var max_population = d3.max(counties.features, function(d) {
+    //   return Math.log(d.properties.population);
+    // });
+    // var max_tweets = d3.max(counties.features, function(d) {
+    //   var tweets = _.extend({For: 0, Against: 0, Total: 0},
+    //     d.properties[tweets_property]);
+    //   return Math.log(tweets.Total);
+    // });
+    // console.log('max_population', max_tweets);
 
+    // prepare
+    var featureForAgainst = function(feature) {
+      var tweets = _.extend({For: 0, Against: 0, Total: 0},
+        feature.properties[tweets_property]);
+      return tweets.Total == 0 ? undefined : (tweets.For - tweets.Against) / tweets.Total;
+    };
+
+    var featureInfo = function(feature) {
+      var tweets = _.extend({For: 0, Against: 0, Total: 0}, feature.properties.tweets);
+      return [
+        feature.id,
+        '(For = ' + tweets.For + ')',
+        '(Against = ' + tweets.Against + ')',
+        '(Pop = ' + feature.properties.population + ')',
+      ].join(' ');
+    };
+
+    var featureSize = function(feature) {
+      if (scale_factor == 'population') {
+        return feature.properties.population;
+      }
+      else {
+        return _.extend({Total: 0}, feature.properties[tweets_property]).Total;
+      }
+    };
+
+    var counties = topojson.feature(map, obj);
+    var sizes = counties.features.map(featureSize);
+    // starting the domain at 0.5 will give even a single tweet a little bit of weight
+    var size_scale = (scale_log ? d3.scale.log() : d3.scale.linear())
+      .domain([0.5, d3.max(sizes)])
+      .range([0, 1]);
 
     svg.selectAll('.for_against')
       .data(counties.features)
     .enter().append('path')
       .attr('d', path)
       .attr('class', 'for_against')
-      .append('title').text(function(d) {
-        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties.tweets);
-        return d.id + ' (For = ' + tweets.For + ', Against = ' + tweets.Against + ')';
-      })
+      .append('title').text(featureInfo)
 
     svg.selectAll('.for_against')
       .data(counties.features)
       .style('fill', function(d) {
-        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties[tweets_property]);
-        if (tweets.Total != 0) {
-          var for_against = (tweets.For - tweets.Against) / tweets.Total;
-          return for_against_gradient(for_against);
-        }
+        return for_against_gradient(featureForAgainst(d));
       })
       .attr('transform', function(d) {
-        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties[tweets_property]);
-
         var centroid = path.centroid(d);
         var dx = centroid[0];
         var dy = centroid[1];
-        var sx, sy;
-        if (scale_factor == 'population') {
-          // sx = sy = d.properties.population / 750000;
-          sx = sy = Math.log(d.properties.population) / 14;
-        }
-        else {
-          // sx = sy = total / 800;
-          sx = sy = Math.log(tweets.Total) / 7.24;
-        }
+        var size = featureSize(d);
+        var scale = size_scale(size);
 
-        var mat = [sx, 0, 0, sy, dx - sx*dx, dy - sy*dy];
+        var mat = [scale, 0, 0, scale, dx - scale*dx, dy - scale*dy];
         return 'matrix(' + mat.join(',') + ')';
       });
-
-    // svg.selectAll('.for_against')
-    //   .data(counties.features)
-    // .exit().remove();
 
     // the mesh is just a undifferentiated grid of all things on the map
     var mesh = topojson.mesh(map);
