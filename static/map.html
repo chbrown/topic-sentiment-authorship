@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<head>
+  <!-- http://ghkl/tsa/static/map.html -->
+  <meta charset='utf-8'>
+  <style>
+  svg {
+    border: 1px solid #ddd;
+  }
+  path.mesh {
+    stroke: #000;
+    stroke-width: .5px;
+    stroke-linejoin: round;
+  }
+  path {
+    fill: none;
+  }
+  </style>
+</head>
+<body ng-app="app" ng-controller="mapCtrl">
+  <nav>
+    <div>
+      <label style="display: none">
+        <input type="checkbox" ng-model="$storage.for_against"> Tweets
+      </label>
+      <label style="display: none">
+        <input type="checkbox" ng-model="$storage.population"> Population
+      </label>
+      <label>
+        <div style="font-weight: 800; font-size: 90%">Label source</div>
+        <select ng-model="$storage.tweets_property"
+          ng-options="opt.value as opt.key for opt in tweets_properties"></select>
+      </label>
+      <label>
+        <div style="font-weight: 800; font-size: 90%">Scaling factor</div>
+        <select ng-model="$storage.scale_factor"
+          ng-options="opt.value as opt.key for opt in scale_factors"></select>
+      </label>
+    </div>
+  </nav>
+  <svg></svg>
+</body>
+
+<script src="./lib/underscore.min.js"></script>
+<script src="./lib/angular.js"></script>
+<script src="./lib/ngStorage.js"></script>
+<script src="./lib/d3.js"></script>
+<script src="./lib/topojson.js"></script>
+<script>
+var width = 700,
+    height = 700;
+
+// var projection = path.projection();
+var projection = d3.geo.mercator()
+  .center([-82.7, 40.2]) // somewhere in the middle
+  // .center([-82.98, 39.98]) // Columbus
+  .scale(8000)
+  // .rotate([0, 0])
+  .translate([width / 2, height / 2]);
+
+// colorbrewer.RdBu[9]
+var for_against_gradient = d3.scale.linear()
+  .domain([-1, 0, 1])
+  .range(['blue', 'purple', 'red']);
+
+var population_gradient = d3.scale.linear()
+  .domain([0, 1000000])
+  .range(['white', 'black']);
+
+var path = d3.geo.path()
+  .projection(projection);
+
+var svg = d3.select('svg')
+    .attr('width', width)
+    .attr('height', height);
+
+angular.module('app', ['ngStorage'])
+.controller('mapCtrl', function($scope, $localStorage, $http) {
+  $scope.$storage = $localStorage.$default({});
+
+  $scope.tweets_properties = [
+    {key: 'All geolocated tweets (after automatic classification)', value: 'tweets'},
+    {key: 'Manually labeled tweets', value: 'labeled_tweets'},
+  ];
+  $scope.scale_factors = [
+    {key: 'Census 2010 population', value: 'population'},
+    {key: 'Number of tweets', value: 'tweets'},
+  ];
+
+  var redraw = function() {
+    draw($scope.$storage.tweets_property, $scope.$storage.scale_factor);
+  }
+
+  $scope.$watch('$storage.tweets_property', redraw);
+  $scope.$watch('$storage.scale_factor', redraw);
+  // svg.selectAll('.for_against').style('visibility', val ? 'visible' : 'hidden')
+});
+
+function draw(tweets_property, scale_factor) {
+  console.log('drawing', tweets_property, scale_factor);
+  d3.json('./oh-counties.topo.json', function(err, map) {
+    var obj = map.objects['stdin'],
+        tf = map.transform,
+        kx = tf.scale[0],
+        ky = tf.scale[1],
+        dx = tf.translate[0],
+        dy = tf.translate[1];
+
+    var counties = topojson.feature(map, obj);
+
+
+    svg.selectAll('.for_against')
+      .data(counties.features)
+    .enter().append('path')
+      .attr('d', path)
+      .attr('class', 'for_against');
+
+    svg.selectAll('.for_against')
+      .data(counties.features)
+      .style('fill', function(d) {
+        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties[tweets_property]);
+        if (tweets.Total != 0) {
+          var for_against = (tweets.For - tweets.Against) / tweets.Total;
+          return for_against_gradient(for_against);
+        }
+      })
+      .attr('transform', function(d) {
+        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties[tweets_property]);
+
+        var centroid = path.centroid(d);
+        var dx = centroid[0];
+        var dy = centroid[1];
+        var sx, sy;
+        if (scale_factor == 'population') {
+          // sx = sy = d.properties.population / 750000;
+          sx = sy = Math.log(d.properties.population) / 14;
+        }
+        else {
+          // sx = sy = total / 800;
+          sx = sy = Math.log(tweets.Total) / 7.24;
+        }
+
+        var mat = [sx, 0, 0, sy, dx - sx*dx, dy - sy*dy];
+        return 'matrix(' + mat.join(',') + ')';
+      });
+
+    // svg.selectAll('.for_against')
+    //   .data(counties.features)
+    // .exit().remove();
+
+    // the mesh is just a undifferentiated grid of all things on the map
+    var mesh = topojson.mesh(map);
+    var mesh_path = svg.selectAll('.mesh')
+      .data([true])
+    .enter().append('path')
+      .attr('class', 'mesh')
+      .datum(mesh)
+      .style('stroke' ,'black')
+      .attr('d', path);
+  });
+}
+// svg.selectAll('circle')
+//     .data(map.arcs)
+//   .enter().append('circle')
+//     .attr('transform', function(d) {
+//       return 'translate(' + projection([d[0][0] * kx + dx, d[0][1] * ky + dy]) + ')';
+//     })
+//     .attr('r', 1.25);
+
+// .append('svg:title').text(function(d) {
+//   var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties.tweets);
+//   return 'For = ' + tweets.For + ', Against = ' + tweets.Against;
+// })
+
+// svg.selectAll('.population')
+//   .data(counties.features)
+// .enter().append('path')
+//   .attr('d', function(d) {
+//     return path(d)
+//   })
+//   .attr('class', 'population')
+//   .style('fill', function(d) {
+//     return population_gradient(d.properties.population);
+//   });
+
+</script>
