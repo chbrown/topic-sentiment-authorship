@@ -8,5 +8,24 @@
   "author": {
     "name": "Christopher Brown",
     "email": "io@henrian.com"
+  },
+  "staticPattern": "static/lib/{file}",
+  "staticDependencies": {
+    "angular": "*",
+    "d3": {
+      "url": "git://github.com/mbostock/d3.git",
+      "filter": ["d3.js", "d3.min.js"]
+    },
+    "jquery": "*",
+    "misc-js": "git://github.com/chbrown/misc-js.git",
+    "ngStorage": {
+      "url": "git://github.com/gsklee/ngStorage.git",
+      "filter": ["ngStorage.js", "ngStorage.min.js"]
+    },
+    "topojson": {
+      "url": "git://github.com/mbostock/topojson.git",
+      "filter": ["topojson.js"]
+    },
+    "underscore": "*"
   }
 }
