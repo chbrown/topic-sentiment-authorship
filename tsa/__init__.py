@@ -1,4 +1,7 @@
+import os
 import sys
+here = os.path.dirname(__file__) or os.curdir
+root = os.path.dirname(os.path.abspath(here))
 
 logging_formats = {
     'dated': '%(levelname)s\t%(asctime)s\t%(message)s',
