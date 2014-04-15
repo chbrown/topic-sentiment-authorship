@@ -75,7 +75,10 @@ var svg = d3.select('svg')
 
 angular.module('app', ['ngStorage'])
 .controller('mapCtrl', function($scope, $localStorage, $http) {
-  $scope.$storage = $localStorage.$default({});
+  $scope.$storage = $localStorage.$default({
+    tweets_property: 'tweets',
+    scale_factor: 'tweets',
+  });
 
   $scope.tweets_properties = [
     {key: 'All geolocated tweets (after automatic classification)', value: 'tweets'},
