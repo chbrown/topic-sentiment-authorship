@@ -1,7 +1,9 @@
 <!DOCTYPE html>
 <head>
   <!-- http://ghkl/tsa/static/map.html -->
+  <!-- http://rawgit.com/chbrown/tsa/master/static/map.html -->
   <meta charset='utf-8'>
+  <title>Ohio Map</title>
   <style>
   svg {
     border: 1px solid #ddd;
@@ -99,7 +101,7 @@ angular.module('app', ['ngStorage'])
 });
 
 function draw(tweets_property, scale_factor) {
-  console.log('drawing', tweets_property, scale_factor);
+  // console.log('drawing', tweets_property, scale_factor);
   d3.json('./oh-counties.topo.json', function(err, map) {
     var obj = map.objects['stdin'],
         tf = map.transform,
@@ -115,7 +117,11 @@ function draw(tweets_property, scale_factor) {
       .data(counties.features)
     .enter().append('path')
       .attr('d', path)
-      .attr('class', 'for_against');
+      .attr('class', 'for_against')
+      .append('title').text(function(d) {
+        var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties.tweets);
+        return d.id + ' (For = ' + tweets.For + ', Against = ' + tweets.Against + ')';
+      })
 
     svg.selectAll('.for_against')
       .data(counties.features)
@@ -169,10 +175,6 @@ function draw(tweets_property, scale_factor) {
 //     })
 //     .attr('r', 1.25);
 
-// .append('svg:title').text(function(d) {
-//   var tweets = _.extend({For: 0, Against: 0, Total: 0}, d.properties.tweets);
-//   return 'For = ' + tweets.For + ', Against = ' + tweets.Against;
-// })
 
 // svg.selectAll('.population')
 //   .data(counties.features)
