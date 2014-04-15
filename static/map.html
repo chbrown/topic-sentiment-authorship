@@ -103,7 +103,7 @@ angular.module('app', ['ngStorage'])
 });
 
 function draw(tweets_property, scale_factor, scale_log) {
-  console.log('drawing', tweets_property, scale_factor);
+  // console.log('drawing', tweets_property, scale_factor);
   d3.json('./oh-counties.topo.json', function(err, map) {
     var obj = map.objects['stdin'],
         tf = map.transform,
@@ -111,16 +111,6 @@ function draw(tweets_property, scale_factor, scale_log) {
         ky = tf.scale[1],
         dx = tf.translate[0],
         dy = tf.translate[1];
-
-    // var max_population = d3.max(counties.features, function(d) {
-    //   return Math.log(d.properties.population);
-    // });
-    // var max_tweets = d3.max(counties.features, function(d) {
-    //   var tweets = _.extend({For: 0, Against: 0, Total: 0},
-    //     d.properties[tweets_property]);
-    //   return Math.log(tweets.Total);
-    // });
-    // console.log('max_population', max_tweets);
 
     // prepare
     var featureForAgainst = function(feature) {
@@ -165,7 +155,8 @@ function draw(tweets_property, scale_factor, scale_log) {
     svg.selectAll('.for_against')
       .data(counties.features)
       .style('fill', function(d) {
-        return for_against_gradient(featureForAgainst(d));
+        var for_against = featureForAgainst(d);
+        return for_against ? for_against_gradient(for_against) : 'white';
       })
       .attr('transform', function(d) {
         var centroid = path.centroid(d);
