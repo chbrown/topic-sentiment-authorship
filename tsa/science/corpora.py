@@ -41,7 +41,6 @@ class MulticlassCorpus(object):
         self.X = np.array([[]])
         self.feature_names = np.array([])
 
-        # self.indices = npx.indices(self.y)
         # logger.debug('MulticlassCorpus created (N = %d)', len(self))
 
 
@@ -101,21 +100,31 @@ class MulticlassCorpus(object):
         self.extract_features(docfunc, features.ngrams)
 
 
-    def subset(self, indices):
+    def subset(self, rows=None, features=None):
         '''
         Return new corpus, for given subset of rows.
 
         indices can be a boolean mask.
         '''
-        corpus = MulticlassCorpus(self.data[indices])
+        n_rows, n_features = self.X.shape
+        if rows is None:
+            rows = np.arange(n_rows)
+        if features is None:
+            features = np.arange(n_features)
+
+        corpus = MulticlassCorpus(self.data[rows])
         corpus.labels = self.labels
-        corpus.feature_names = self.feature_names
         corpus.class_lookup = self.class_lookup
-        corpus.y = self.y[indices]
+        corpus.feature_names = self.feature_names[features]
+        corpus.y = self.y[rows]
         # empty X handling could be better
-        corpus.X = self.X
-        if corpus.X.size > 0 and corpus.X.shape[0] == len(self):
-            if sparse.issparse(corpus.X):
-                corpus.X = corpus.X.tocsr()
-            corpus.X = corpus.X[indices, :]
+        if self.X.size > 0:
+            if sparse.issparse(self.X):
+                # this sparse subsetting could probably be better, too
+                corpus.X = self.X.tocsc()[:, features].tocsr()[rows, :]
+            else:
+                corpus.X = self.X[rows, features]
+        else:
+            corpus.X = self.X
+
         return corpus

@@ -263,63 +263,6 @@ def time_hist(label, times, values,
 
 
 
-def liwc_over_time():
-    from tsa.science.features import liwc
-    liwc_counts, liwc_categories = liwc([doc.document for doc in full_corpus.data])
-
-
-
-
-    # negemo_counts = liwc_counts[:, liwc_categories.index('negemo')].toarray()
-    # hist(posemo_counts)
-
-    # time_hist('negemo', full_corpus_times, negemo_counts, statistic='sum', **styles.next())
-
-    for liwc_category in ['posemo', 'negemo']:
-        plt.cla()
-        styles = distinct_styles()
-        # styles.next()
-        counts = liwc_counts[:, liwc_categories.index(liwc_category)].toarray()
-        time_hist('Overall %s' % liwc_category, full_corpus_times, counts,
-            statistic='sum', **styles.next())
-        for label in ['For', 'Against']:
-            indices = full_pred_y == full_corpus.class_lookup[label]
-            time_hist('%s-class %s' % (label, liwc_category),
-                full_corpus_times[indices], counts[indices], statistic='sum', **styles.next())
-        plt.title('LIWC category: %s' % liwc_category)
-        plt.ylabel('Frequency')
-        plt.xlabel('Date')
-        axes = plt.gca()
-        axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
-        axes.grid(False)
-        plt.xlim(np.array(npx.bounds(full_corpus_times)).astype(float))
-        plt.gcf().set_size_inches(8, 5)
-        plt.legend(loc='best')
-        plt.savefig(figure_path('liwc-%s-for-vs-against.pdf' % liwc_category))
-
-    raise IPython.embed()
-
-    # convert vector to column matrix
-    values = full_pred_y.reshape((-1, 1))
-
-    plt.cla()
-
-    for label in ['For', 'Against']:
-        indices = full_pred_y == full_corpus.class_lookup[label]
-        # by week
-        bin_edges, bin_values = timeseries.binned_timeseries(
-            full_corpus_times[indices], values[indices],
-            time_units_per_bin=7, time_unit='D', statistic='count')
-        bin_values = bin_values.ravel()
-        # bin_values = npx.exponential_decay(bin_values.ravel(), window=14, alpha=0.75)
-        plt.plot(bin_edges, bin_values, label=label, **styles.next())
-
-    # datetime64_formatter = datetime_extra.datetime64_formatter
-    axes = plt.gca()
-    axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
-    axes.grid(False)
-
-
 def sb5_extrapolate_labels():
     from tsa.data.sb5b import notable_events
     notable_events_labels, notable_events_dates = zip(*notable_events)

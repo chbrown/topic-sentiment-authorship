@@ -25,7 +25,9 @@ from tsa import logging
 logger = logging.getLogger(__name__)
 
 
-logger.info('%s finished with imports', __file__)
+def flt(x):
+    return '%.2f' % x
+
 
 
 def explore_coefs(X, coefs):
@@ -58,10 +60,6 @@ def explore_coefs(X, coefs):
     Z = linkage(X, 'single', 'correlation')
     dendrogram(Z, color_threshold=0)
     # sklearn.cluster.Ward
-
-
-def flt(x):
-    return '%.2f' % x
 
 
 

@@ -23,6 +23,23 @@ from tsa.science.plot import plt
 # import matplotlib.pyplot as plt
 
 
+def time_exploration():
+    # all_tweet_dates = read.table('~/github/tsa/R/TweetTimes.csv', header=TRUE)
+    tweet_times = []
+    # dates = strptime(all_tweet_dates$TweetTime, format="%Y-%m-%d")
+    # dates = as.POSIXct(all_tweet_dates$TweetTime, format="%Y-%m-%d")
+    # dates = as.Date(all_tweet_dates$TweetTime, format="%Y-%m-%d")
+    # qplot(dates, aes(x=dates))
+    # plot(xtabs(~ dates))
+    # hist(dates, breaks=50, density=FALSE)
+    # qplot(dates, geom='histogram', binwidth=1) +
+    #   scale_x_date(labels=date_format("%m-%d"), breaks=date_breaks("month"))
+    # ggplot(as.integer(dates)) +
+      # geom_histogram(binwidth=1)
+    # scale_x_date(labels=date_format("%Y-%m-%d"))
+
+
+
 def plot_hashtag_volumes(analysis_options):
     '''
     This will plot the hashtag volumes of the top 100 hashtags over the course of the corpus

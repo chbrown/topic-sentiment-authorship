@@ -109,7 +109,7 @@ def bootstrap(n, n_iter, proportion=1.0):
 
 
 def indices(array):
-    # np.indices is weird.
+    '''Return a range of indices representating all elements in "array", in the shape of "array"'''
     return np.arange(array.size).reshape(array.shape)
 
 
