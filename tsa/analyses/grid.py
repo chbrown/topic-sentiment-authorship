@@ -35,32 +35,6 @@ from tsa import logging
 logger = logging.getLogger(__name__)
 
 
-# def MulticlassCorpus_from_documents(documents):
-#     documents = list(documents)
-#     corpus = MulticlassCorpus(documents)
-#     corpus.apply_labelfunc(lambda doc: doc.label)
-#     return corpus
-
-def database_overview(analysis_options):
-    from sqlalchemy import func
-
-    print '# database overview'
-
-    DBSession = create_session()
-    sources = DBSession.query(Source).all()
-    for source in sources:
-        print '## %s' % (source.name)
-        n = DBSession.query(Document).filter(Document.source == source).count()
-        # print 'n', DBSession.query(Document).filter(Document.source == source), n
-        print 'N = %6d' % n
-        labels = DBSession.query(Document.label, func.count(Document.label)).\
-            filter(Document.source == source).\
-            group_by(Document.label)
-        for label, count in labels:
-            print '    %6d %s' % (count, label)
-        print
-
-
 def source_corpus(source_name):
     documents = Source.from_name(source_name)
     corpus = MulticlassCorpus(documents)

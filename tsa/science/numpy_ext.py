@@ -225,7 +225,9 @@ def var_accumulate(array, axis=0, dtype=None):
 
 
 def tfidf(array):
-    # given a corpus of counts, compute tf-idf transform
+    '''
+    Compute the TF-IDF matrix for a given array (i.e., some matrix of counts, documents as rows, tokens as columns)
+    '''
     ndocs, ndims = array.shape
     # idf is a ndims-long vector
     idf = float(ndocs) / np.apply_along_axis(np.count_nonzero, 0, array)
