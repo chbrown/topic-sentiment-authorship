@@ -4,19 +4,6 @@
   <!-- http://rawgit.com/chbrown/tsa/master/static/map.html -->
   <meta charset='utf-8'>
   <title>Ohio Map</title>
-  <style>
-  svg {
-    border: 1px solid #ddd;
-  }
-  path.mesh {
-    stroke: #000;
-    stroke-width: .5px;
-    stroke-linejoin: round;
-  }
-  path {
-    fill: none;
-  }
-  </style>
 </head>
 <body ng-app="app" ng-controller="mapCtrl">
   <nav>
@@ -39,7 +26,17 @@
       </label>
     </div>
   </nav>
-  <svg></svg>
+  <svg downloadable style="border: 1px solid #ddd;">
+    <style type="text/css">
+    path {
+      fill: none;
+    }
+    path.mesh {
+      stroke-width: .5px;
+      stroke: black;
+    }
+    </style>
+  </svg>
 </body>
 
 <script src="./lib/underscore.min.js"></script>
@@ -48,6 +45,33 @@
 <script src="./lib/d3.min.js"></script>
 <script src="./lib/topojson.js"></script>
 <script>
+function download(blob, filename) {
+  // window.href = object_url;
+  // window.open(object_url, '_blank', '');
+  // var blob = new Blob([req.response], {type:  'application/pdf'});
+  var object_url = window.URL.createObjectURL(blob);
+
+  var a = document.createElement('a');
+  a.setAttribute('href', object_url);
+  a.setAttribute('download', filename);
+  a.dispatchEvent(new MouseEvent('click'));
+
+  window.URL.revokeObjectURL(object_url);
+}
+
+function render_svg(svg) {
+  req = new XMLHttpRequest()
+  req.open('POST', 'http://localhost:1151/');
+  req.setRequestHeader('X-Args', '-f pdf');
+  req.responseType = 'blob';
+  req.send(svg);
+  req.onreadystatechange = function() {
+    if (req.readyState == 4) {
+      download(req.response, 'map.pdf');
+    }
+  };
+}
+
 var width = 700,
     height = 700;
 
@@ -75,8 +99,8 @@ var svg = d3.select('svg')
     .attr('width', width)
     .attr('height', height);
 
-angular.module('app', ['ngStorage'])
-.controller('mapCtrl', function($scope, $localStorage, $http) {
+var app = angular.module('app', ['ngStorage']);
+app.controller('mapCtrl', function($scope, $localStorage, $http) {
   $scope.$storage = $localStorage.$default({
     tweets_property: 'tweets',
     scale_factor: 'tweets',
@@ -100,6 +124,19 @@ angular.module('app', ['ngStorage'])
   $scope.$watch('$storage.scale_factor', redraw);
   $scope.$watch('$storage.scale_log', redraw);
   // svg.selectAll('.for_against').style('visibility', val ? 'visible' : 'hidden')
+});
+
+app.directive('downloadable', function($http) {
+  return {
+    link: function(scope, element, attrs) {
+      var control = angular.element('<div><button>Download PDF</button></div>');
+      control.find('button').on('click', function() {
+        var svg = new XMLSerializer().serializeToString(element[0]);
+        render_svg(svg);
+      });
+      element.after(control);
+    }
+  };
 });
 
 function draw(tweets_property, scale_factor, scale_log) {
@@ -176,18 +213,9 @@ function draw(tweets_property, scale_factor, scale_log) {
     .enter().append('path')
       .attr('class', 'mesh')
       .datum(mesh)
-      .style('stroke' ,'black')
       .attr('d', path);
   });
 }
-// svg.selectAll('circle')
-//     .data(map.arcs)
-//   .enter().append('circle')
-//     .attr('transform', function(d) {
-//       return 'translate(' + projection([d[0][0] * kx + dx, d[0][1] * ky + dy]) + ')';
-//     })
-//     .attr('r', 1.25);
-
 
 // svg.selectAll('.population')
 //   .data(counties.features)
@@ -199,5 +227,4 @@ function draw(tweets_property, scale_factor, scale_log) {
 //   .style('fill', function(d) {
 //     return population_gradient(d.properties.population);
 //   });
-
 </script>
