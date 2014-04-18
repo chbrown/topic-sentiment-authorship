@@ -1,6 +1,7 @@
-from sklearn import metrics
 from viz import gloss, geom
 import numpy as np
+from sklearn import metrics, cross_validation
+
 from tsa.science import numpy_ext as npx
 
 import logging
@@ -78,3 +79,17 @@ def explore_topics(topic_model, tokens_per_topic=10):
         # print ' ', ', '.join(tokens)
         print 'Topic %d' % topic_i
         print gloss.gloss(alignments, toksep='  ', prefixes=['  ', '  '])
+
+
+def average_accuracy(corpus, model, test_size=0.1, n_iter=10):
+    folds = cross_validation.StratifiedShuffleSplit(corpus.y, test_size=test_size, n_iter=n_iter)
+    accuracies = []
+    for train_indices, test_indices in folds:
+        train_corpus = corpus.subset(train_indices)
+        test_corpus = corpus.subset(test_indices)
+        model.fit(train_corpus.X, train_corpus.y)
+        pred_y = model.predict(test_corpus.X)
+        # pred_proba = model.predict_proba(test_corpus.X)
+        accuracy = metrics.accuracy_score(test_corpus.y, pred_y)
+        accuracies += [accuracy]
+    return np.mean(accuracies)

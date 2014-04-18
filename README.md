@@ -42,7 +42,7 @@ Thus, if `coefs` is a two-dimensional array, `coefs[fold, ]` is the same as `coe
 * `axis=0`: apply function to each column in turn
 * `axis=1`: apply function to each row in turn
 
-When our rows are observations, most aggregations use axis=0.
+When our rows are observations, **most aggregations use axis=0.**
 This is because each cell has much more in common with the rest of the column than the rest of the row.
 
     >>> grades_by_age = np.array([

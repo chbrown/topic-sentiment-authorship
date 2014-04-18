@@ -30,27 +30,6 @@ from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCo
 
 
 
-def sample_table(feature_names, array, group_size=25):
-    # Looking at the extremes
-    ordering = array.argsort()
-    group_names = ['smallest', 'median', 'largest']
-    headers = [cell for group_name in group_names for cell in [group_name + '-v', group_name + '-k']]
-    groups_indices = [
-        npx.head_indices(array, group_size),
-        npx.median_indices(array, group_size),
-        npx.tail_indices(array, group_size)]
-    printer = tabular.Printer(headers=headers, FS=' & ', RS='\\\\\n')
-    printer.write_strings(printer.headers)
-    for row in range(group_size):
-        row_dict = dict()
-        for group_name, group_indices in zip(group_names, groups_indices):
-            indices = ordering[group_indices]
-            row_dict[group_name + '-k'] = feature_names[indices][row]
-            row_dict[group_name + '-v'] = array[indices][row]
-        printer.write(row_dict)
-
-
-
 def perceptron(analysis_options):
     # corpus = read_sb5b_MulticlassCorpus(sort=False, limits=dict(For=2500, Against=2500))
     corpus = read_sb5b_MulticlassCorpus()

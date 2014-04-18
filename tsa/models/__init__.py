@@ -41,14 +41,19 @@ class Source(Model):
     __table__ = Table('sources', metadata, autoload=True)
 
     @classmethod
-    def from_name(cls, name):
+    def from_name(cls, source_name, labeled_only=False, sort=True):
         session = create_session()
-        return session.query(Document).\
+        query = session.query(Document).\
             join(Source, Source.id == Document.source_id).\
-            filter(Source.name == name).\
-            filter(Document.label != None).\
-            order_by(Document.published).all()
+            filter(Source.name == source_name)
 
+        if labeled_only:
+            query = query.filter(Document.label != None)
+
+        if sort:
+            query = query.order_by(Document.published)
+
+        return query.all()
 
 
 class Document(Model):

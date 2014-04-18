@@ -9,3 +9,5 @@
 /node_modules/
 /*.egg
 /*.egg-info
+
+.ipynb_checkpoints/
