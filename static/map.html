@@ -16,26 +16,30 @@
       <select ng-model="$storage.tweets_property"
         ng-options="opt.value as opt.key for opt in tweets_properties"></select>
 
-      <div><b>Scaling factor</b>
-        <label>
-          <input type="checkbox" ng-model="$storage.scale_log"> log
-        </label>
-      </div>
+      <div><b>Scaling factor</b></div>
       <select ng-model="$storage.scale_factor"
         ng-options="opt.value as opt.key for opt in scale_factors"></select>
+      <label>
+        <input type="checkbox" ng-model="$storage.scale_log"> log
       </label>
+
     </div>
   </nav>
   <svg downloadable style="border: 1px solid #ddd;">
-    <style type="text/css">
-    path {
-      fill: none;
-    }
-    path.mesh {
-      stroke-width: 1px;
-      stroke: black;
-    }
-    </style>
+    <defs>
+      <style type="text/css">
+      path {
+        fill: none;
+      }
+      path.mesh {
+        stroke-width: 1px;
+        stroke: black;
+      }
+      </style>
+      <!-- <pattern id="diagonalHatch" patternUnits="userSpaceOnUse" width="4" height="4">
+        <path d="M-1,1 l2,-2 M0,4 l4,-4 M3,5 l2,-2" style="stroke-width: 2px; stroke: black"></path>
+      </pattern> -->
+    </defs>
   </svg>
 </body>
 
@@ -45,12 +49,14 @@
 <script src="./lib/d3.min.js"></script>
 <script src="./lib/topojson.js"></script>
 <script>
+var p = console.log.bind(console);
 function download(blob, filename) {
   // window.href = object_url;
   // window.open(object_url, '_blank', '');
   // var blob = new Blob([req.response], {type:  'application/pdf'});
   var object_url = window.URL.createObjectURL(blob);
 
+  // html is so silly sometimes
   var a = document.createElement('a');
   a.setAttribute('href', object_url);
   a.setAttribute('download', filename);
@@ -72,59 +78,7 @@ function render_svg(svg) {
   };
 }
 
-var width = 700,
-    height = 700;
-
-// var projection = path.projection();
-var projection = d3.geo.mercator()
-  .center([-82.7, 40.2]) // somewhere in the middle
-  // .center([-82.98, 39.98]) // Columbus
-  .scale(8000)
-  // .rotate([0, 0])
-  .translate([width / 2, height / 2]);
-
-// colorbrewer.RdBu[9]
-var for_against_gradient = d3.scale.linear()
-  .domain([-1, 0, 1])
-  .range(['blue', 'purple', 'red']);
-
-var population_gradient = d3.scale.linear()
-  .domain([0, 1000000])
-  .range(['white', 'black']);
-
-var path = d3.geo.path()
-  .projection(projection);
-
-var svg = d3.select('svg')
-    .attr('width', width)
-    .attr('height', height);
-
 var app = angular.module('app', ['ngStorage']);
-app.controller('mapCtrl', function($scope, $localStorage, $http) {
-  $scope.$storage = $localStorage.$default({
-    tweets_property: 'tweets',
-    scale_factor: 'tweets',
-    scale_log: true,
-  });
-
-  $scope.tweets_properties = [
-    {key: 'All geolocated tweets (after automatic classification)', value: 'tweets'},
-    {key: 'Manually labeled tweets', value: 'labeled_tweets'},
-  ];
-  $scope.scale_factors = [
-    {key: 'Census 2010 population', value: 'population'},
-    {key: 'Number of tweets', value: 'tweets'},
-  ];
-
-  var redraw = function() {
-    draw($scope.$storage.tweets_property, $scope.$storage.scale_factor, $scope.$storage.scale_log);
-  }
-
-  $scope.$watch('$storage.tweets_property', redraw);
-  $scope.$watch('$storage.scale_factor', redraw);
-  $scope.$watch('$storage.scale_log', redraw);
-  // svg.selectAll('.for_against').style('visibility', val ? 'visible' : 'hidden')
-});
 
 app.directive('downloadable', function($http) {
   return {
@@ -139,8 +93,53 @@ app.directive('downloadable', function($http) {
   };
 });
 
+app.controller('mapCtrl', function($scope, $localStorage, $http) {
+  $scope.$storage = $localStorage.$default({
+    tweets_property: 'tweets',
+    scale_factor: 'tweets',
+    scale_log: true,
+  });
+
+  $scope.tweets_properties = [
+    {key: 'All geolocated tweets (after automatic classification)', value: 'tweets'},
+    {key: 'Manually labeled tweets', value: 'labeled_tweets'},
+    {key: 'Votes on Issue 2', value: 'votes'},
+  ];
+  $scope.scale_factors = [
+    {key: 'Census 2010 population', value: 'population'},
+    {key: 'Number of tweets / votes', value: 'tweets'},
+  ];
+
+  var redraw = _.debounce(function() {
+    draw($scope.$storage.tweets_property, $scope.$storage.scale_factor, $scope.$storage.scale_log);
+  }, 100); // call on the trailing side
+
+  $scope.$watch('$storage.tweets_property', redraw);
+  $scope.$watch('$storage.scale_factor', redraw);
+  $scope.$watch('$storage.scale_log', redraw);
+});
+
+var width = 700;
+var height = 700;
+
+var projection = d3.geo.mercator()
+  .center([-82.7, 40.2]) // somewhere in the middle
+  // .center([-82.98, 39.98]) // Columbus
+  .scale(8000)
+  // .rotate([0, 0])
+  .translate([width / 2, height / 2]);
+
+var path = d3.geo.path()
+  .projection(projection);
+
+var svg = d3.select('svg')
+    .attr('width', width)
+    .attr('height', height);
+
 function draw(tweets_property, scale_factor, scale_log) {
-  // console.log('drawing', tweets_property, scale_factor);
+  // tweets_property can be either "tweets" or "labeled_tweets" or "votes",
+  //   all of which have For/Against/Total values
+
   d3.json('./oh-counties.topo.json', function(err, map) {
     var obj = map.objects['stdin'],
         tf = map.transform,
@@ -150,56 +149,76 @@ function draw(tweets_property, scale_factor, scale_log) {
         dy = tf.translate[1];
 
     // prepare
-    var featureForAgainst = function(feature) {
-      var tweets = _.extend({For: 0, Against: 0, Total: 0},
-        feature.properties[tweets_property]);
-      return tweets.Total == 0 ? undefined : (tweets.For - tweets.Against) / tweets.Total;
-    };
-
-    var featureInfo = function(feature) {
-      var tweets = _.extend({For: 0, Against: 0, Total: 0}, feature.properties.tweets);
-      return [
-        feature.id,
-        '(For = ' + tweets.For + ')',
-        '(Against = ' + tweets.Against + ')',
-        '(Pop = ' + feature.properties.population + ')',
-      ].join(' ');
-    };
-
-    var featureSize = function(feature) {
-      if (scale_factor == 'population') {
-        return feature.properties.population;
-      }
-      else {
-        return _.extend({Total: 0}, feature.properties[tweets_property]).Total;
-      }
+    var getters = {
+      forAgainst: function(feature) {
+        var counts = feature.properties[tweets_property];
+        return counts.Total == 0 ? undefined : (counts.For - counts.Against) / counts.Total;
+      },
+      info: function(feature) {
+        var counts = feature.properties[tweets_property];
+        return [
+          feature.id,
+          '(For = ' + counts.For + ')',
+          '(Against = ' + counts.Against + ')',
+          '(Pop = ' + feature.properties.population + ')',
+        ].join(' ');
+      },
+      size: function(feature) {
+        if (scale_factor == 'population') {
+          return feature.properties.population;
+        }
+        else {
+          var counts = feature.properties[tweets_property];
+          return counts.Total;
+        }
+      },
     };
 
     var counties = topojson.feature(map, obj);
-    var sizes = counties.features.map(featureSize);
+    var sizes = counties.features.map(getters.size);
+    var for_against_mean = d3.mean(counties.features, getters.forAgainst);
+
     // starting the domain at 0.5 will give even a single tweet a little bit of weight
     var size_scale = (scale_log ? d3.scale.log() : d3.scale.linear())
       .domain([0.5, d3.max(sizes)])
       .range([0, 1]);
+
+    // colorbrewer.RdBu[9]
+    var for_against_gradient = d3.scale.linear()
+      // .domain([-1, 0, 1])
+      .domain([-1, for_against_mean, 1])
+      // .range(['blue', 'purple', 'red']); // less clear range
+      .range(['blue', 'white', 'red']);
+
+    var population_gradient = d3.scale.linear()
+      .domain([0, 1000000])
+      .range(['white', 'black']);
 
     svg.selectAll('.for_against')
       .data(counties.features)
     .enter().append('path')
       .attr('d', path)
       .attr('class', 'for_against')
-      .append('title').text(featureInfo)
+      .append('title').text(getters.info)
 
     svg.selectAll('.for_against')
       .data(counties.features)
       .style('fill', function(d) {
-        var for_against = featureForAgainst(d);
+        var for_against = getters.forAgainst(d);
+        // return 'url(#diagonalHatch)'
         return for_against ? for_against_gradient(for_against) : 'white';
+      })
+      .style('stroke', 'black')
+      .style('stroke-dasharray', '1, 1')
+      .style('stroke-width', function(d) {
+        var for_against = getters.forAgainst(d);
+        return for_against ? 1 : 0;
       })
       .attr('transform', function(d) {
         var centroid = path.centroid(d);
         var dx = centroid[0];
         var dy = centroid[1];
-        var size = featureSize(d);
+        var size = getters.size(d);
         var scale = size_scale(size);
 
         var mat = [scale, 0, 0, scale, dx - scale*dx, dy - scale*dy];
