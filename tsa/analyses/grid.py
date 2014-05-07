@@ -53,9 +53,6 @@ def sb5b_source_corpus():
     documents = Source.from_name('sb5b')
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
-    # balanced_indices = npx.balance(
-    #     corpus.y == corpus.class_lookup['For'],
-    #     corpus.y == corpus.class_lookup['Against'])
     polar_indices = (corpus.y == corpus.class_lookup['For']) | (corpus.y == corpus.class_lookup['Against'])
     corpus = corpus.subset(polar_indices)
     # ngram_max=2, min_df=0.001, max_df=0.95
@@ -146,8 +143,10 @@ def corpus_sandbox(analysis_options):
 
     print 'Found %d documents' % len(sb5b_documents)
 
-    rows = [dict(label=document.label, inferred=bool(document.details.get('Inferred')), source=document.details.get('Source', 'NA'))
-            for document in sb5b_documents]
+    rows = [dict(
+        label=document.label,
+        inferred=bool(document.details.get('Inferred')),
+        source=document.details.get('Source', 'NA')) for document in sb5b_documents]
     df = pd.DataFrame.from_records(rows)
 
     # df_agg = df.groupby(['label', 'inferred'])
@@ -161,108 +160,6 @@ def corpus_sandbox(analysis_options):
     for document in sb5b_documents:
         # 'weareohio' in document.document.lower(), .document
         print document.details.get('Source'), document.label
-
-
-    IPython.embed()
-
-
-def sb5_extrapolate(analysis_options):
-    session = create_session()
-    sb5b_documents = session.query(Document).join(Source).\
-        filter(Source.name == 'sb5b').all()
-    full_corpus = MulticlassCorpus(sb5b_documents)
-    full_corpus.apply_labelfunc(lambda doc: doc.label or 'Unlabeled')
-    full_corpus.extract_features(lambda doc: 1, features.intercept)
-    full_corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
-
-    full_corpus_times = np.array([doc.published for doc in full_corpus.data]).astype('datetime64[s]')
-
-    polar_classes = [full_corpus.class_lookup[label] for label in ['For', 'Against']]
-    polar_indices = np.in1d(full_corpus.y, polar_classes)
-    # balanced_indices = npx.balance(
-    #     full_corpus.y == full_corpus.class_lookup['For'],
-    #     full_corpus.y == full_corpus.class_lookup['Against'])
-
-    labeled_corpus = full_corpus.subset(polar_indices)
-    labeled_times = full_corpus_times[polar_indices]
-    # unlabeled_corpus = full_corpus.subset(full_corpus.y == full_corpus.class_lookup['Unlabeled'])
-
-    # pos_label = corpus.class_lookup['For']
-    penalty = 'l1'
-
-    logreg_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
-    logreg_model.fit(labeled_corpus.X, labeled_corpus.y)
-    # labeled_pred_y = logreg_model.predict(labeled_corpus.X)
-    # print 'logreg_model'
-    # print '  {:.2%} coefs == 0'.format((logreg_model.coef_ == 0).mean())
-    # print '  accuracy on training set', metrics.accuracy_score(labeled_corpus.y, labeled_pred_y)
-
-    # unlabeled_pred_y = logreg_model.predict(unlabeled_corpus.X)
-    full_pred_y = logreg_model.predict(full_corpus.X)
-    full_pred_proba = logreg_model.predict_proba(full_corpus.X)
-
-    # histogram of for/against across entire period
-    labeled_time_bounds = np.array(npx.bounds(labeled_times))
-
-    from tsa.data.sb5b import notable_events
-    notable_events_labels, notable_events_dates = zip(*notable_events)
-
-    IPython.embed()
-
-    full_pred_proba_max = full_pred_proba.max(axis=1)
-    # full_pred_proba_hmean = npx.hmean(full_pred_proba, axis=1)
-    plt.cla()
-    styles = distinct_styles()
-    time_hist('', full_corpus_times, full_pred_proba_max.reshape(-1, 1),
-        statistic='mean', **styles.next())
-    # plt.legend(loc='best')
-    plt.title('Average certainty of prediction')
-    plt.xlabel('Date')
-    plt.axvspan(*labeled_time_bounds.astype(float), edgecolor='none', facecolor='g', alpha=0.05)
-    plt.gcf().set_size_inches(8, 5)
-    axes = plt.gca()
-    axes.xaxis.set_major_formatter(ticker.FuncFormatter(datetime_extra.datetime64_formatter))
-    plt.savefig(figure_path('predict-proba-extrapolated.pdf'))
-
-
-
-def time_hist(label, times, values,
-        time_units_per_bin=2, time_unit='D', statistic='count', **style_args):
-    bin_edges, bin_values = timeseries.binned_timeseries(
-        times, values,
-        time_units_per_bin=time_units_per_bin,
-        time_unit=time_unit, statistic=statistic)
-    plt.plot(bin_edges, bin_values, label=label, **style_args)
-
-
-
-def sb5_extrapolate_labels():
-    from tsa.data.sb5b import notable_events
-    notable_events_labels, notable_events_dates = zip(*notable_events)
-
-
-    # plt.vlines(notable_dates.astype(float), *auto_ylim)
-    plt.legend(loc='best')
-    plt.title('For / Against labels throughout corpus')
-    plt.ylabel('Frequency')
-    plt.xlabel('Date')
-    plt.axvspan(*labeled_time_bounds.astype(float), edgecolor='none', facecolor='g', alpha=0.05)
-    plt.gcf().set_size_inches(8, 5)
-    plt.savefig(figure_path('for-against-extrapolated.pdf'))
-
-    auto_ylim = plt.ylim()
-    # auto_xlim = plt.xlim()
-    # plt.vlines(np.array(notable_events_dates).astype('datetime64[s]').astype(float),
-    #     *auto_ylim, colors='k')
-
-
-    for i, (label, date) in enumerate(notable_events):
-        # http://matplotlib.org/api/pyplot_api.html#matplotlib.pyplot.axvline
-        x = date.astype('datetime64[s]').astype(float)
-        plt.axvline(x, color='k')
-        plt.text(x, auto_ylim[1]*(0.9 - i * 0.1), '- ' + label)
-
 
 
     IPython.embed()

@@ -9,8 +9,8 @@ import matplotlib.cm as colormap
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 # import matplotlib.dates as mdates
-plt.rcParams['interactive'] = True
-plt.rcParams['axes.grid'] = True
+# plt.rcParams['interactive'] = True
+# plt.rcParams['axes.grid'] = True
 
 qmargins = [0, 5, 10, 50, 90, 95, 100]
 
@@ -43,12 +43,12 @@ def figure_path(name):
         raise Exception('Could not find unused file! Last tried: %s' % filepath)
 
 
-def clear():
-    plt.cla()
-    plt.axes(aspect='auto')
-    # plt.axis('tight')
-    # plt.tight_layout()
-    plt.margins(0.025, tight=True)
+# def clear():
+#     plt.cla()
+#     plt.axes(aspect='auto')
+#     # plt.axis('tight')
+#     # plt.tight_layout()
+#     plt.margins(0.025, tight=True)
 
 
 # markers = {0: 'tickleft', 1: 'tickright', 2: 'tickup', 3: 'tickdown', 4: 'caretleft', 'D': 'diamond', 6: 'caretup', 7: 'caretdown', 's': 'square', '|': 'vline', '': 'nothing', 'None': 'nothing', 'x': 'x', 5: 'caretright', '_': 'hline', '^': 'triangle_up', None: 'nothing', 'd': 'thin_diamond', ' ': 'nothing', 'h': 'hexagon1', '+': 'plus', '*': 'star', ',': 'pixel', 'o': 'circle', '.': 'point', '1': 'tri_down', 'p': 'pentagon', '3': 'tri_left', '2': 'tri_up', '4': 'tri_right', 'H': 'hexagon2', 'v': 'triangle_down', '8': 'octagon', '<': 'triangle_left', '>': 'triangle_right'}
@@ -83,5 +83,3 @@ def distinct_styles():
     zipped = izip(cycle(linewidths), cycle(linestyles), cycle(colors))
     for linewidth, linestyle, color in zipped:
         yield dict(linewidth=linewidth, linestyle=linestyle, color=color)
-
-# distinct_styles_iter = distinct_styles()

@@ -95,9 +95,9 @@ class MulticlassCorpus(object):
         return np.arange(original_ncolumns, self.X.shape[1])
 
 
-    def extract_default_features(self, docfunc):
-        # use the defaults: ngram_max=2, min_df=0.01, max_df=0.99
-        self.extract_features(docfunc, features.ngrams)
+    # def extract_default_features(self, docfunc):
+    #     # use the defaults: ngram_max=2, min_df=0.01, max_df=0.99
+    #     self.extract_features(docfunc, features.ngrams)
 
 
     def subset(self, rows=None, features=None):
@@ -123,7 +123,8 @@ class MulticlassCorpus(object):
                 # this sparse subsetting could probably be better, too
                 corpus.X = self.X.tocsc()[:, features].tocsr()[rows, :]
             else:
-                corpus.X = self.X[rows, features]
+                # well, this is awkward... [rows, features] doesn't *just work*
+                corpus.X = self.X[rows, :][:, features]
         else:
             corpus.X = self.X
 
