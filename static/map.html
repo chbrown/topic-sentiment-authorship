@@ -70,12 +70,17 @@ function render_svg(svg) {
   req.open('POST', 'http://localhost:1151/');
   req.setRequestHeader('X-Args', '-f pdf');
   req.responseType = 'blob';
-  req.send(svg);
+  req.onerror = function(ev) {
+    console.error('Render error:', ev);
+  };
   req.onreadystatechange = function() {
     if (req.readyState == 4) {
-      download(req.response, 'map.pdf');
+      if (req.status == 200) {
+        download(req.response, 'map.pdf');
+      }
     }
   };
+  req.send(svg);
 }
 
 var app = angular.module('app', ['ngStorage']);
