@@ -24,19 +24,37 @@ def intercept(documents):
     return (np.ones((len(documents), 1)), ['#intercept#'])
 
 
-def ngrams(documents, min_df=0.01, max_df=0.99, ngram_max=2):
+def ngrams(documents, ngram_max=2, **kwargs):
     '''
-    ngram features
+    n-gram features
 
     documents should be an iterable of strings (not tokenized)
+
+    Defaults:
+        min_df = 2
+        max_df = 1.0
+        ngram_range = (1, 2)
+        token_pattern = ur'\S+'
+
+    **kwargs will be used in the text.CountVectorizer constructor.
+
+    Examples:
+        ngram_range: (min_n, max_n)
+            All values of n such that min_n <= n <= max_n will be used.
+            (1, 1) = unigrams
+            (1, 2) = bigrams
+        min_df = 10   : ignore terms that occur less often than in 10 different documents
+        max_df =  0.99: ignore terms that occur in greater than 99% of documents
     '''
-    # ngram_range: All values of n such that min_n <= n <= max_n will be used.
-    # min_df = 10   : ignore terms that occur less often than in 10 different documents
-    # max_df =  0.99: ignore terms that occur in greater than 99% of document
     logger.debug('Extracting ngram features')
-    # default token_pattern=u'(?u)\b\w\w+\b'
-    vectorizer = CountVectorizer(token_pattern=ur'\b\S+\b',
-        ngram_range=(1, ngram_max), min_df=min_df, max_df=max_df)
+
+    # sklearn default token_pattern=u'(?u)\b\w\w+\b'
+    #   (?P<filename>(\w|[.,!#%{}()@])+)$'
+    from tsa.tweetmotif import twokenize
+    vectorizer_kwargs = dict(min_df=2, ngram_range=(1, ngram_max), tokenizer=twokenize.tokenize)
+    vectorizer_kwargs.update(kwargs)
+
+    vectorizer = CountVectorizer(**vectorizer_kwargs)
     values = vectorizer.fit_transform(documents)
     return (values, vectorizer.get_feature_names())
 
