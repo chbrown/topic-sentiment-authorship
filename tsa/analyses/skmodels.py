@@ -24,7 +24,7 @@ from tsa.lib.timer import Timer
 from tsa.science import features
 from tsa.science.corpora import MulticlassCorpus
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
-from tsa.science.plot import plt, figure_path, clear
+from tsa.science.plot import plt, figure_path
 
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 

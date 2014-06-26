@@ -13,7 +13,7 @@ from viz.geom import hist
 from sklearn import metrics, cross_validation
 from sklearn import linear_model
 from sklearn import naive_bayes
-from sklearn import svm
+# from sklearn import svm
 # from sklearn import cluster, decomposition, ensemble, neighbors, neural_network, qda
 # from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 # from sklearn.feature_extraction import DictVectorizer
@@ -21,14 +21,14 @@ from sklearn import svm
 # from sklearn.feature_selection import SelectPercentile, SelectKBest
 # from sklearn.feature_selection import chi2, f_classif, f_regression
 
-from tsa import stdout, stderr
-from tsa.lib import tabular, datetime_extra
+from tsa import stdout
+from tsa.lib import tabular
 from tsa.lib.timer import Timer
 from tsa.models import Source, Document, create_session
-from tsa.science import features, models, timeseries
+from tsa.science import features, models
 from tsa.science.corpora import MulticlassCorpus
-from tsa.science.plot import plt, figure_path, distinct_styles, ticker
-from tsa.science.summarization import metrics_dict, metrics_summary
+from tsa.science.plot import plt, figure_path, distinct_styles
+from tsa.science.summarization import metrics_dict
 # from tsa.science.summarization import explore_mispredictions, explore_uncertainty
 
 from tsa import logging
@@ -53,7 +53,9 @@ def sb5b_source_corpus():
     documents = Source.from_name('sb5b')
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
-    polar_indices = (corpus.y == corpus.class_lookup['For']) | (corpus.y == corpus.class_lookup['Against'])
+    # polar_indices = (corpus.y == corpus.class_lookup['For']) | (corpus.y == corpus.class_lookup['Against'])
+    polar_classes = [corpus.class_lookup[label] for label in ['For', 'Against']]
+    polar_indices = np.in1d(corpus.y, polar_classes)
     corpus = corpus.subset(polar_indices)
     # ngram_max=2, min_df=0.001, max_df=0.95
     corpus.extract_features(lambda doc: doc.document, features.ngrams,
@@ -106,7 +108,7 @@ def grid_plots(analysis_options):
         print title
         grid_plot(corpus)
         plt.title(title)
-        plt.savefig(figure_path('grid-plot-%s' % title))
+        plt.savefig(figure_path('model-grid-%s' % title))
         plt.cla()
 
 
@@ -403,4 +405,5 @@ def grid_plot(corpus):
     plt.ylabel('Accuracy')
     plt.ylim(.4, 1.0)
     plt.xlim(0, 10000)
+    plt.grid(False)
     plt.gcf().set_size_inches(8, 5)
