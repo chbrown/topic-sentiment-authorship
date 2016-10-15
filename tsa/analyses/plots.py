@@ -1,43 +1,15 @@
 # universals:
 import IPython
 import numpy as np
-import pandas as pd
 from tsa.science import numpy_ext as npx
 
-import viz
-from viz.format import quantiles
-from viz.geom import hist
-
-from collections import Counter
-from sklearn import metrics
-from sklearn import linear_model
-
-
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
-from tsa.lib import itertools, datetime_extra
-from tsa.science import text, features, plot, timeseries
+from tsa.lib import datetime_extra
+from tsa.science import features, plot, timeseries
 from tsa import logging
 logger = logging.getLogger(__name__)
 
 from tsa.science.plot import plt
-# import matplotlib.pyplot as plt
-
-
-def time_exploration():
-    # all_tweet_dates = read.table('~/github/tsa/R/TweetTimes.csv', header=TRUE)
-    tweet_times = []
-    # dates = strptime(all_tweet_dates$TweetTime, format="%Y-%m-%d")
-    # dates = as.POSIXct(all_tweet_dates$TweetTime, format="%Y-%m-%d")
-    # dates = as.Date(all_tweet_dates$TweetTime, format="%Y-%m-%d")
-    # qplot(dates, aes(x=dates))
-    # plot(xtabs(~ dates))
-    # hist(dates, breaks=50, density=FALSE)
-    # qplot(dates, geom='histogram', binwidth=1) +
-    #   scale_x_date(labels=date_format("%m-%d"), breaks=date_breaks("month"))
-    # ggplot(as.integer(dates)) +
-      # geom_histogram(binwidth=1)
-    # scale_x_date(labels=date_format("%Y-%m-%d"))
-
 
 
 def plot_hashtag_volumes(analysis_options):
@@ -56,7 +28,7 @@ def plot_hashtag_volumes(analysis_options):
     # coefs_variances = np.var(coefs, axis=0)
 
     added_indices = corpus.apply_features(corpus.documents, features.hashtags)
-    print 'After extracting hashtags:', corpus.X.shape
+    print('After extracting hashtags: %s' % corpus.X.shape)
 
     # 1. full set of data
     X = corpus.X.tocsr()

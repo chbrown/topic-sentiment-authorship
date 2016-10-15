@@ -91,7 +91,6 @@ class MulticlassCorpus(object):
         # merge feature_names
         self.feature_names = np.concatenate((self.feature_names, feature_names))
         # return the indices of the added columns
-        # import IPython; IPython.embed()
         return np.arange(original_ncolumns, self.X.shape[1])
 
 

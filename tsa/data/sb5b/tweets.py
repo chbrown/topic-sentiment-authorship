@@ -1,9 +1,5 @@
-import os
-from datetime import datetime
-
 import numpy as np
-from tsa.lib import cache, html  # , itertools
-from tsa.science import features
+from tsa.lib import cache
 from tsa.science.corpora import MulticlassCorpus
 from tsa import logging
 logger = logging.getLogger(__name__)

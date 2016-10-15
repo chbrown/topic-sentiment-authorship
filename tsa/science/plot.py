@@ -6,8 +6,6 @@ logger = logging.getLogger(__name__)
 
 from itertools import cycle, izip
 import matplotlib.cm as colormap
-import matplotlib.pyplot as plt
-import matplotlib.ticker as ticker
 # import matplotlib.dates as mdates
 # plt.rcParams['interactive'] = True
 # plt.rcParams['axes.grid'] = True
