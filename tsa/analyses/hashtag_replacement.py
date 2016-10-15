@@ -13,9 +13,7 @@ from sklearn import linear_model
 from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
 
 from tsa.lib import cache
-# import itertools
-# take ~ itertools.islice(read_tweets(), max)
-from tsa.lib.itertools import take, Quota
+from tsa.lib.itertools import Quota
 from tsa.science.summarization import explore_mispredictions, explore_uncertainty, metrics_summary
 from tsa.science.text import hashtags
 
@@ -75,7 +73,6 @@ def read_hashtags_as_labels(n_hashtags, per_hashtag):
     with open(ttv2_filepath) as ttv2_file:
         # for tweet in read_tweets(ttv2_file):
         # tweet_hashtags = list(hashtags(tweet.text))
-        # take(, 10)
         quota = Quota(**label_counts)
         hashtag_text_pairs = read_tweets_hashtagged(ttv2_file)
         for hashtag, text in quota.filter(hashtag_text_pairs):

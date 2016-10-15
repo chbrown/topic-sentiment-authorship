@@ -1,19 +1,7 @@
-import signal
-
-
 # from operator import itemgetter
 # item_zero = itemgetter(0)
 # item_zero = lambda obj: obj.__getitem__[0]
 item_zero = lambda tup: tup[0]
-
-
-def take(iterable, n=10):
-    last_index = n - 1
-    # return itertools.islice(iterable, n)
-    for index, item in enumerate(iterable):
-        yield item
-        if index == last_index:
-            break
 
 
 class Quota(object):
@@ -57,30 +45,3 @@ class Quota(object):
             pass
 
     # todo: add filter_with_key which would yield (key, item) pairs
-
-
-def sig_enumerate(iterable, start=0, logger=None):
-    '''
-    Just like the built-in enumerate(), but also respond to SIGINFO with a
-    line of output to the given / default logger.
-    '''
-    if logger is None:
-        from tsa import logging
-        logger = logging.getLogger('SIGINFO')
-
-    message = 'Iteration: -1'
-
-    def handler(signum, frame):
-        logger.info(message)
-
-    logger.silly('enumerating... type Ctrl-T to show current iteration')
-
-    signum = signal.SIGINFO
-    old_handler = signal.signal(signum, handler)
-    try:
-        for i, x in enumerate(iterable, start=start):
-            message = 'Iteration: %d' % i
-            yield i, x
-    finally:
-        # put the original signal back
-        signal.signal(signum, old_handler)

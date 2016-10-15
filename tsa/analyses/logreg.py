@@ -14,7 +14,7 @@ from sklearn import linear_model
 from sklearn import naive_bayes
 
 from tsa import stdout, stderr
-from tsa.lib.itertools import sig_enumerate
+import iter8
 from tsa.models import Source, Document, create_session
 from tsa.science import features, models, timeseries
 from tsa.science.corpora import MulticlassCorpus
@@ -105,9 +105,9 @@ def sb5_confidence(analysis_options):
 
         # plt.cla()
         # log reg
-        print 'logreg accuracy {:.2%}'.format(
-            metrics.accuracy_score(test_corpus.y, logreg_pred_y))
-        print 'histogram of logreg proba hmean on misclassifications'
+        print('logreg accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, logreg_pred_y)))
+        print('histogram of logreg proba hmean on misclassifications')
         logreg_proba_hmean = npx.hmean(
             logreg_pred_proba[test_corpus.y != logreg_pred_y], axis=1)
         hist(logreg_proba_hmean)
@@ -181,7 +181,7 @@ def oracle(analysis_options):
         # return x + 3
     # np.fromfunction(
 
-    for i, _ in sig_enumerate(range(100), logger=logger):
+    for i, _ in iter8.sig_enumerate(range(100), logger=logger):
         print 'Iteration #%d' % i
         # for each i in the top 100 training examples
         # split indices into:
@@ -460,7 +460,7 @@ def standard(analysis_options):
     random_lr_coefs = model.coef_.ravel()
 
     # folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    # for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+    # for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
     #     test_X, test_y = X[test_indices], y[test_indices]
     #     train_X, train_y = X[train_indices], y[train_indices]
     #     model.fit(train_X, train_y)

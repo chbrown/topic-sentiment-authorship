@@ -1,25 +1,12 @@
 # -*- coding: utf-8 -*-
-import os
-import IPython
 import numpy as np
-# import pandas as pd
-from tsa.science import numpy_ext as npx
 
-import viz
-from viz.format import quantiles
-from viz.geom import hist
+import iter8
 
-# from collections import Counter
-from sklearn import metrics
-from sklearn import svm
-from sklearn import neural_network
-from sklearn import naive_bayes
 from sklearn import cross_validation
-from sklearn import linear_model
-from tsa.science import features
+from sklearn import naive_bayes
 from tsa.science.summarization import metrics_dict
 
-from tsa.lib import cache, tabular, itertools
 from tsa import logging
 logger = logging.getLogger(__name__)
 
@@ -41,10 +28,11 @@ def rottentomatoes(analysis_options):
         X = corpus.X[indices]
     y = corpus.y[indices]
 
-    printer = tabular.Printer()
+    # from tsa.lib import tabular
+    # printer = tabular.Printer()
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    for fold_index, (train_indices, test_indices) in itertools.sig_enumerate(folds, logger=logger):
+    for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
         test_X, test_y = X[test_indices], y[test_indices]
         train_X, train_y = X[train_indices], y[train_indices]
 
@@ -62,7 +50,7 @@ def rottentomatoes(analysis_options):
 
         result = metrics_dict(test_y, pred_y)
         # print 'Prediction result:', result
-        print 'Prediction accuracy:', result['accuracy']
+        print('Prediction accuracy:%s' % result['accuracy'])
 
         # print metrics.accuracy_score(y, pred_y)
 
