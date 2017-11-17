@@ -105,9 +105,9 @@ def sb5_confidence(analysis_options):
 
         # plt.cla()
         # log reg
-        print('logreg accuracy {:.2%}'.format(
-            metrics.accuracy_score(test_corpus.y, logreg_pred_y)))
-        print('histogram of logreg proba hmean on misclassifications')
+        print 'logreg accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, logreg_pred_y))
+        print 'histogram of logreg proba hmean on misclassifications'
         logreg_proba_hmean = npx.hmean(
             logreg_pred_proba[test_corpus.y != logreg_pred_y], axis=1)
         hist(logreg_proba_hmean)
