@@ -2,6 +2,13 @@
 
 Tools built on computational linguistic concepts to accompany my research at the University of Texas at Austin.
 
+
+## Development
+
+    SITE_PACKAGES=$(python -c 'import os,site;print(os.path.realpath(next(iter(site.getsitepackages()))))')
+    pwd > "$SITE_PACKAGES"/topic-sentiment-authorship.pth
+
+
 ## Results
 
 `gensim` LDA, 10 topics, tf-idf preprocessing, on the 6,379 linked pages with content.
