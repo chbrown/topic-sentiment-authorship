@@ -181,7 +181,7 @@ def oracle(analysis_options):
         # return x + 3
     # np.fromfunction(
 
-    for i, _ in iter8.sig_enumerate(range(100), logger=logger):
+    for i, _ in iter8.sig_enumerate(list(range(100)), logger=logger):
         print('Iteration #%d' % i)
         # for each i in the top 100 training examples
         # split indices into:
@@ -202,11 +202,11 @@ def oracle(analysis_options):
 
         candidate_indices = all_indices[~used_mask]
         print('testing out %d indices' % candidate_indices.size)
-        accuracies = map(accuracy_with_index, candidate_indices)
+        accuracies = list(map(accuracy_with_index, candidate_indices))
 
         df = pd.DataFrame({'added_index': candidate_indices, 'accuracy': accuracies})
         # df = pd.DataFrame(index=candidate_indices, data={'accuracy': accuracies})
-        margins = range(0, 10) + range(len(df) - 10, len(df))
+        margins = list(range(0, 10)) + list(range(len(df) - 10, len(df)))
         # pd.options.display.max_rows = 20
         # pd.options.display.show_dimensions = False
         print(df.ix[margins])
@@ -358,7 +358,7 @@ def confidence(analysis_options):
 
 
 
-    percentiles = np.percentile(biased_transformed, range(0, 100, 25))
+    percentiles = np.percentile(biased_transformed, list(range(0, 100, 25)))
     bins = np.digitize(biased_transformed, percentiles)
 
     for bin_i in range(1, 5):
@@ -573,7 +573,7 @@ def standard(analysis_options):
     plt.cla()
     ordering = coefs_means.argsort()
     middle = ordering.size // 2
-    indices = npx.edge_and_median_indices(0, 25) + range(middle - 12, middle + 13) + range(-25, 0)
+    indices = npx.edge_and_median_indices(0, 25) + list(range(middle - 12, middle + 13)) + list(range(-25, 0))
     subset = cumulative_coefs_means[:, ordering[indices]]
     plt.plot(subset)
     plt.title('Coefficient means converging across a %d-iteration bootstrap\n(75 of the lowest / nearest-average / highest means)' % subset.shape[0])

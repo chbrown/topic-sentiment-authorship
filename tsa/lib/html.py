@@ -1,8 +1,8 @@
 import re
 import justext
-import HTMLParser
+import html.parser
 
-html_parser = HTMLParser.HTMLParser()
+html_parser = html.parser.HTMLParser()
 english_stopwords = justext.get_stoplist('English')
 # (?:...) means do not return this group in the match
 url_re = re.compile('((?:https?://)?[-a-z0-9]+\.[-.a-z0-9]+/\S+)', re.I)

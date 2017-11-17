@@ -1,6 +1,6 @@
 import os
 import string
-import cPickle
+import pickle
 
 import logging
 logger = logging.getLogger(__name__)
@@ -29,7 +29,7 @@ def hit(filepath_format, func, *args, **kwargs):
     if os.path.exists(filepath):
         logger.debug('CACHE HIT (reading pickled object from file: %s)', filepath)
         pickle_fp = open(filepath, 'rb')
-        result = cPickle.load(pickle_fp)
+        result = pickle.load(pickle_fp)
         logger.debug('CACHE DONE')
     else:
         logger.info('CACHE MISS (executing function)')
@@ -42,7 +42,7 @@ def hit(filepath_format, func, *args, **kwargs):
             result = list(result)
 
         pickle_fp = open(filepath, 'wb')
-        cPickle.dump(result, pickle_fp)
+        pickle.dump(result, pickle_fp)
         logger.debug('CACHE DONE (wrote pickled object to file: %s)', filepath)
     return result
 

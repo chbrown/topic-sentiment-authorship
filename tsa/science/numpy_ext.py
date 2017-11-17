@@ -18,15 +18,15 @@ def _type_raise(prototype_array, force_dtype=None):
 
 
 def head_indices(array, n):
-    return range(0, n)
+    return list(range(0, n))
 
 def tail_indices(array, n):
-    return range(array.size - n, array.size)
+    return list(range(array.size - n, array.size))
 
 def median_indices(array, n):
     median = array.size // 2
     half_n = n // 2
-    return range(median - half_n, median + half_n + 1)
+    return list(range(median - half_n, median + half_n + 1))
 
 def edge_indices(array, n):
     return head_indices(array, n) + tail_indices(array, n)
@@ -53,12 +53,12 @@ def exponential_decay(a, window=10, alpha=.5):
     distribution = dist(alpha**np.arange(window))
     # distribution now sums to one, and each item is roughly alpha*previous_item
     window_distribution = distribution[::-1]
-    windows = [range(index - window, index) for index in np.arange(1, a.size + 1)]
+    windows = [list(range(index - window, index)) for index in np.arange(1, a.size + 1)]
     windows = np.array(windows).clip(0)
     return (a[windows]*window_distribution).sum(axis=1)
 
 def margins(n):
-    return range(0, n) + range(-n, 0)
+    return list(range(0, n)) + list(range(-n, 0))
 
 # def edgeindices(edgeitems):
 #     # returns indices of the first <edgeitems> and the last <edgeitems> elements of an array
@@ -151,8 +151,8 @@ def table(ys, names=None):
     counts = np.bincount(ys)
     # list(enumerate(np.bincount(ys)))
     if names is None:
-        names = range(len(counts))
-    return zip(names, counts)
+        names = list(range(len(counts)))
+    return list(zip(names, counts))
 
 
 def datetime64(x):

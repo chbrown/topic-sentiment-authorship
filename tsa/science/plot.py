@@ -78,6 +78,6 @@ def distinct_styles():
     # period = 60
     # markers = ['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd']
 
-    zipped = zip(cycle(linewidths), cycle(linestyles), cycle(colors))
+    zipped = list(zip(cycle(linewidths), cycle(linestyles), cycle(colors)))
     for linewidth, linestyle, color in zipped:
         yield dict(linewidth=linewidth, linestyle=linestyle, color=color)

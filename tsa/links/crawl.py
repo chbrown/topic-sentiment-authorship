@@ -2,7 +2,7 @@
 import requests
 import requests.exceptions as reqexc
 import socket
-import urlparse
+import urllib.parse
 import sqlalchemy.exc as sqlexc
 from datetime import datetime
 
@@ -81,7 +81,7 @@ def tabulate(endpoints):
     max_len = 65536/2 - 10
     for endpoint in endpoints:
         trail = ' -> '.join(endpoint.trail())
-        domain = urlparse.urlparse(endpoint.url).netloc.lstrip('www.')
+        domain = urllib.parse.urlparse(endpoint.url).netloc.lstrip('www.')
         text = endpoint.content.translate(whitespace_translations)
 
         line = '\t'.join([str(endpoint.id), trail, domain, text[:max_len]])

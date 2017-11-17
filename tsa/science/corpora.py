@@ -57,7 +57,7 @@ class MulticlassCorpus(object):
         Updates self.labels and sets self.y based on self.data and the given label getter function.
         '''
         # y_labels is an N-long np.array of strings
-        y_labels = map(labelfunc, self.data)
+        y_labels = list(map(labelfunc, self.data))
         # calculate unique classes using set()
         new_labels = set(y_labels) - set(self.labels)
         self.labels = np.concatenate((self.labels, list(new_labels)))
@@ -76,7 +76,7 @@ class MulticlassCorpus(object):
         from tsa import features
         corpus.apply_features(documents, features.ngrams, ngram_max=1)
         '''
-        documents = map(docfunc, self.data)
+        documents = list(map(docfunc, self.data))
         X, feature_names = feature_function(documents, **feature_function_kwargs)
         original_ncolumns = self.X.shape[1]
         # incorporate / merge X

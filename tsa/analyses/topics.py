@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 def to_gensim(array):
     # convert a csr corpus to what gensim wants: a list of list of tuples
     mat = sparse.csr_matrix(array)
-    return [zip(row.indices, row.data) for row in mat]
+    return [list(zip(row.indices, row.data)) for row in mat]
 
 
 def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
@@ -126,7 +126,6 @@ def links_gensim(analysis_options):
         print(' ', ', '.join(tokens))
 
     print('analyzing total topic alignments:')
-    topic_indices = range(num_topics)
     topics_sums = defaultdict(int)
     topics_count_firsts = defaultdict(int)
     topics_count_seconds = defaultdict(int)
@@ -140,7 +139,7 @@ def links_gensim(analysis_options):
         if len(doc_topics_sorted) > 1:
             topics_count_seconds[doc_topics_sorted[1][0]] += 1
 
-    for topic_index in topic_indices:
+    for topic_index in range(num_topics):
         print('Topic %d: count[1]=%d, count[2]=%d, sum=%0.2f' % (topic_index,
             topics_count_firsts[topic_index], topics_count_seconds[topic_index], topics_sums[topic_index]))
 

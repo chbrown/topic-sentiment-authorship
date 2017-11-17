@@ -287,7 +287,7 @@ def sample_errors(analysis_options):
             x_coefs = x[nonzero_features] * coefs[nonzero_features]
             # pairs = zip(x_names, ['%.2f' % x for x in x_coefs])
             reordering = np.argsort(x_coefs)
-            pairs = zip(x_names[reordering], ['%.2f' % x for x in x_coefs[reordering]])
+            pairs = list(zip(x_names[reordering], ['%.2f' % x for x in x_coefs[reordering]]))
             print()
             print('--- %s ---' % test_corpus.labels[test_corpus.y[index]])
             print('%s (%s)' % (doc.document.replace('\n', ' '), doc.label))
@@ -379,7 +379,7 @@ def grid_plot(corpus):
     # df_agg = df.groupby(['model', 'train']).aggregate(np.mean)
     # df_agg.plot(x='train', y='accuracy')
 
-    counts = np.array(Counter(corpus.y).values(), dtype=float)
+    counts = np.array(list(Counter(corpus.y).values()), dtype=float)
     baseline = counts.max() / counts.sum()
     print('baseline:', baseline)
     styles = distinct_styles()

@@ -28,7 +28,7 @@ def metrics_dict(y_true, y_pred, labels=None, pos_label=1, average=None):
     # jaccard_similarity=metrics.jaccard_similarity_score(y_true, y_pred),
     # zero_one_loss is (1.0 - accuracy) in multi-label scenarios
     # zero_one_loss=metrics.zero_one_loss(y_true, y_pred),
-    return dict(zip(prfs_keys, prfs_values) + [('accuracy', accuracy)])
+    return dict(zip(prfs_keys, prfs_values), accuracy=accuracy)
 
 
 def explore_mispredictions(test_X, test_y, model, test_indices, label_names, documents):
@@ -74,7 +74,7 @@ def explore_topics(topic_model, tokens_per_topic=10):
         topic = topic_model.show_topic(topic_i, topn=tokens_per_topic)
         ratios, tokens = zip(*topic)
         # terminal.width()
-        alignments = zip(tokens, ['%0.3f' % ratio for ratio in ratios])
+        alignments = list(zip(tokens, ['%0.3f' % ratio for ratio in ratios]))
          # (%0.4f > ratio > %0.4f):' % (, ratios[0], ratios[-1])
         # print ' ', ', '.join(tokens)
         print('Topic %d' % topic_i)
