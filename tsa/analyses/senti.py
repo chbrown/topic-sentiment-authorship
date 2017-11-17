@@ -1,16 +1,12 @@
-# -*- coding: utf-8 -*-
 import numpy as np
 
 import iter8
 
-from sklearn import cross_validation
-from sklearn import naive_bayes
+from sklearn import cross_validation, naive_bayes
 from tsa.science.summarization import metrics_dict
 
 from tsa import logging
 logger = logging.getLogger(__name__)
-
-# from tsa.science.plot import plt
 
 
 def rottentomatoes(analysis_options):

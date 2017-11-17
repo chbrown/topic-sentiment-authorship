@@ -1,11 +1,10 @@
 import numpy as np
+import sklearn.feature_selection
+import sklearn.linear_model
+from tsa import logging
 from tsa.science import numpy_ext as npx
 import iter8
 
-import sklearn.feature_selection
-import sklearn.linear_model
-
-from tsa import logging
 logger = logging.getLogger(__name__)
 
 
@@ -14,6 +13,9 @@ class Bootstrap(object):
     Each row in the fitted .coefs_ property is the result of one bootstrap sample.
         This row has as many columns as there are coefficients in the underlying model.
     '''
+    coefs_ = None
+    classes_ = None
+
     def __init__(self, ClassificationModel, n_iter=100, proportion=0.5, **model_args):
         self.ClassificationModel = ClassificationModel
         # penalty='l2', C=1.0):

@@ -1,23 +1,22 @@
-import IPython
 from collections import Counter
 
 import numpy as np
 
-from viz import terminal
 from viz.geom import hist
 
 import pandas as pd
 
 from sklearn import cross_validation, metrics
 from sklearn import linear_model
-from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
+from sklearn.feature_extraction.text import CountVectorizer
 
 from tsa.lib import cache
 from tsa.lib.itertools import Quota
-from tsa.science.summarization import explore_mispredictions, explore_uncertainty, metrics_summary
+from tsa.science import numpy_ext as npx
+from tsa.science.summarization import metrics_summary
 from tsa.science.text import hashtags
 
-import logging
+from tsa import logging
 logger = logging.getLogger(__name__)
 
 # logger.critical('sys.getdefaultencoding: %s', sys.getdefaultencoding())
@@ -92,7 +91,7 @@ def given_labels():
     y = np.array([label_ids[label] for label in labels])
     count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 1), token_pattern=r'\b\S+\b')
     corpus_count_vectors = count_vectorizer.fit_transform(texts)
-    dimension_names = np.array(count_vectorizer.get_feature_names())
+    #dimension_names = np.array(count_vectorizer.get_feature_names())
     X = corpus_count_vectors.toarray()
 
     logger.info('X.shape=%s, y.shape=%s', X.shape, y.shape)
@@ -110,7 +109,8 @@ def given_labels():
         pred_probabilities = model.predict_proba(test_X)
 
         logger.info('Overall %s; log loss: %0.4f',
-            metrics_summary(test_y, pred_y), metrics.log_loss(test_y, pred_probabilities))
+                    metrics_summary(test_y, pred_y),
+                    metrics.log_loss(test_y, pred_probabilities))
 
         # logger.info('classification_report')
         # print metrics.classification_report(test_y, pred_y, target_names=label_names)
@@ -127,7 +127,8 @@ def given_labels():
 def explore_confusion_matrix(test_y, pred_y, label_names):
     # across the left are the true classes
     # along the top are what model classified them as
-    # so for a single row, the things that are not in that row's diagonal are what are most conflated with that row's hashtag
+    # so for a single row, the things that are not in that row's diagonal are
+    # what are most conflated with that row's hashtag
     confusion_counts = metrics.confusion_matrix(test_y, pred_y)
     print(pd.DataFrame(confusion_counts, index=label_names, columns=label_names))
 
@@ -141,4 +142,4 @@ def explore_labels(label_names, dimension_names, coef_):
         label_coef = coef_[label_index, :]
         hist(label_coef, range=(-2, 2))
         ranked_dimensions = label_coef.argsort()
-        print('dimensions of extreme coefficients:', dimension_names[ranked_dimensions[margins(5)]])
+        print('dimensions of extreme coefficients:', dimension_names[ranked_dimensions[npx.margins(5)]])

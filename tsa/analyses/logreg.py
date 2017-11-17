@@ -1,27 +1,18 @@
-# -*- coding: utf-8 -*-
-import IPython
-import scipy
 import numpy as np
 import pandas as pd
-from tsa.science import numpy_ext as npx
-
+from sklearn import metrics, cross_validation, linear_model
+import IPython
 import viz
 from viz.format import quantiles
 from viz.geom import hist
-
-from sklearn import metrics, cross_validation
-from sklearn import linear_model
-from sklearn import naive_bayes
-
-from tsa import stdout, stderr
 import iter8
-from tsa.models import Source, Document, create_session
-from tsa.science import features, models, timeseries
-from tsa.science.corpora import MulticlassCorpus
-from tsa.science.plot import plt, figure_path, distinct_styles, ticker
-from tsa.science.summarization import metrics_dict, metrics_summary
 
 from tsa import logging
+from tsa.models import Source, Document, create_session
+from tsa.science import features, models, timeseries, numpy_ext as npx
+from tsa.science.corpora import MulticlassCorpus
+from tsa.science.plot import plt, figure_path, distinct_styles, ticker
+
 logger = logging.getLogger(__name__)
 
 
@@ -29,13 +20,12 @@ def flt(x):
     return '%.2f' % x
 
 
-
 def explore_coefs(X, coefs):
     # sample_cov = np.cov(coefs) # is this anything?
     coefs_cov = np.cov(coefs, rowvar=0)
     plt.imshow(coefs_cov)
     # w, v = np.linalg.eig(coefs_cov)
-    u, s, v = np.linalg.svd(coefs_cov)
+    # u, s, v = np.linalg.svd(coefs_cov)
 
     # reorder least-to-biggest
     rowsums = np.sum(coefs_cov, axis=0)
@@ -62,7 +52,6 @@ def explore_coefs(X, coefs):
     # sklearn.cluster.Ward
 
 
-
 def sb5_confidence(analysis_options):
     session = create_session()
     sb5b_documents = session.query(Document).join(Source).\
@@ -70,8 +59,8 @@ def sb5_confidence(analysis_options):
     corpus = MulticlassCorpus(sb5b_documents)
     corpus.apply_labelfunc(lambda doc: doc.label or 'Unlabeled')
     corpus.extract_features(lambda doc: 1, features.intercept)
-    corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
+    corpus.extract_features(lambda doc: doc.document,
+                            features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
 
     polar_classes = [corpus.class_lookup[label] for label in ['For', 'Against']]
     polar_indices = np.in1d(corpus.y, polar_classes)
@@ -84,7 +73,7 @@ def sb5_confidence(analysis_options):
     # gets wrong vs. a straight logistic regression
 
     folds = cross_validation.StratifiedShuffleSplit(labeled_corpus.y, test_size=0.1, n_iter=20)
-    for fold_index, (train_indices, test_indices) in enumerate(folds):
+    for _fold_index, (train_indices, test_indices) in enumerate(folds):
         train_corpus = labeled_corpus.subset(train_indices)
         test_corpus = labeled_corpus.subset(test_indices)
 
@@ -135,7 +124,6 @@ def sb5_confidence(analysis_options):
     # fig1 = plt.figure()
     # ax1 = fig1.add_subplot(111)
     # ax1.hist(xyz_pred_proba)
-
 
 
 def logreg_accuracy(X, y, train_indices):
@@ -227,8 +215,6 @@ def oracle(analysis_options):
                 print(tweet['Label'], tweet['Tweet'])
 
 
-
-
 def binned_accuracy(values, true_y, pred_y, n_bins=10):
     # values should be the real-valued products of features and coefficients
     bounds = npx.bounds(values)
@@ -254,7 +240,7 @@ def confidence(analysis_options):
     labeled_indices = npx.bool_mask_to_indices(labeled_mask)
     n_iter = 100
     coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
-        n_iter=n_iter, proportion=0.5)
+                            n_iter=n_iter, proportion=0.5)
     coefs_means = np.mean(coefs, axis=0)
     # coefs_variances = np.var(coefs, axis=0)
 
@@ -337,7 +323,7 @@ def confidence(analysis_options):
     print('Biased overall accuracy: %.4f' % metrics.accuracy_score(test_y, biased_pred_y))
     # np.linspace(0, 10, )
     # for i in range:
-    IPython.embed(); raise SystemExit(91)
+    # IPython.embed(); raise SystemExit(91)
 
     bounds = npx.bounds(biased_transformed)
 
@@ -355,7 +341,6 @@ def confidence(analysis_options):
         print('Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
             bin_i, indices.size, transform_mean,
             metrics.accuracy_score(test_y[indices], biased_pred_y[indices])))
-
 
 
     percentiles = np.percentile(biased_transformed, list(range(0, 100, 25)))
@@ -377,9 +362,6 @@ def confidence(analysis_options):
         test_y[extreme_50_indices], biased_pred_y[extreme_50_indices]))
 
 
-
-
-
     # hist(transformed[middle_50_indices])
     # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
     # print (gold_y == bootstrap_pred_y).mean()
@@ -388,7 +370,6 @@ def confidence(analysis_options):
         test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices]))
     print('Accuracy over extremes: %.4f' % metrics.accuracy_score(
         test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices]))
-
 
 
     # bokeh quickstart
@@ -433,7 +414,7 @@ def standard(analysis_options):
     labeled_indices = npx.bool_mask_to_indices(labeled_mask)
     n_iter = 100
     coefs = bootstrap_model(X[labeled_indices], y[labeled_indices],
-        n_iter=n_iter, proportion=0.5)
+                            n_iter=n_iter, proportion=0.5)
     coefs_means = np.mean(coefs, axis=0)
     coefs_variances = np.var(coefs, axis=0)
 
@@ -455,7 +436,7 @@ def standard(analysis_options):
     # model = linear_model.RandomizedLogisticRegression()
     # model.fit(X[labeled_indices], y[labeled_indices])
 
-    IPython.embed(); raise SystemExit(91)
+    # IPython.embed(); raise SystemExit(91)
 
     random_lr_coefs = model.coef_.ravel()
 
@@ -491,7 +472,7 @@ def standard(analysis_options):
 
     # model.intercept_
 
-    IPython.embed(); raise SystemExit(111)
+    # IPython.embed(); raise SystemExit(111)
 
     # minimum, maximum = npx.bounds(times)
     # npx.datespace(minimum, maximum, 7, 'D')
@@ -610,7 +591,8 @@ def standard(analysis_options):
         # train_X, test_X = X[train_indices], X[test_indices]
         # train_y, test_y = y[train_indices], y[test_indices]
 
-        # nice L1 vs. L2 norm tutorial: http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
+        # nice L1 vs. L2 norm tutorial:
+        # http://scikit-learn.org/stable/auto_examples/linear_model/plot_logistic_l1_l2_sparsity.html
 
         # if k == 9:
         #     print '!!! randomizing predictions'

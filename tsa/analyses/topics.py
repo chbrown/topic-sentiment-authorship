@@ -1,14 +1,13 @@
-import IPython
 from itertools import islice
 from collections import defaultdict
-import numpy as np
 from scipy import sparse
 import gensim
 from gensim.utils import simple_preprocess
+import IPython
 
 from tsa.lib import cache
 from tsa.models import Source
-from tsa.science import features, models, numpy_ext as npx
+from tsa.science import numpy_ext as npx
 from tsa.science.corpora import MulticlassCorpus
 from tsa.science.summarization import explore_topics
 from tsa.science.mallet import mallet
@@ -31,8 +30,7 @@ def build_topic_model(X, dimension_names, tfidf_transform=True, num_topics=5):
     corpus = to_gensim(X)
 
     vocab = dict(enumerate(dimension_names))
-    topic_model = gensim.models.LdaModel(corpus,
-        id2word=vocab, num_topics=num_topics, passes=1)
+    topic_model = gensim.models.LdaModel(corpus, id2word=vocab, num_topics=num_topics, passes=1)
     return topic_model
 
 
@@ -140,8 +138,11 @@ def links_gensim(analysis_options):
             topics_count_seconds[doc_topics_sorted[1][0]] += 1
 
     for topic_index in range(num_topics):
-        print('Topic %d: count[1]=%d, count[2]=%d, sum=%0.2f' % (topic_index,
-            topics_count_firsts[topic_index], topics_count_seconds[topic_index], topics_sums[topic_index]))
+        print('Topic {:d}: count[1]={:d}, count[2]={:d}, sum={:0.2f}'.format(
+            topic_index,
+            topics_count_firsts[topic_index],
+            topics_count_seconds[topic_index],
+            topics_sums[topic_index]))
 
     print('previewing 10 endpoints')
     # look at only the first 10 endpoint.
@@ -174,7 +175,7 @@ def topics(num_topics=5):
     logger.debug('topics(): X.shape = %s, y.shape = %s', X.shape, y.shape)
     # X.todok().items() returns a list of ((row, col), value) tuples
 
-    build_topic_model
+    # build_topic_model
     for label_i, label_name in enumerate(label_names):
         sub_X = X[y == label_i, :]
 
@@ -182,8 +183,10 @@ def topics(num_topics=5):
         # sub_dims is a list of the indices of columns that have nonzero occurrences:
         sub_dims = colsums.nonzero()[0]
 
-        topic_model = build_topic_model(sub_X[:, sub_dims], dimension_names[sub_dims],
-            tfidf_transform=True, num_topics=num_topics)
+        topic_model = build_topic_model(sub_X[:, sub_dims],
+                                        dimension_names[sub_dims],
+                                        tfidf_transform=True,
+                                        num_topics=num_topics)
 
         print('---')
         print(label_i, ':', label_name)

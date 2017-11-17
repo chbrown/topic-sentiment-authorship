@@ -1,11 +1,11 @@
 import os
+from itertools import cycle
 import numpy as np
-
+import matplotlib.cm as colormap
 from tsa import logging
+
 logger = logging.getLogger(__name__)
 
-from itertools import cycle
-import matplotlib.cm as colormap
 # import matplotlib.dates as mdates
 # plt.rcParams['interactive'] = True
 # plt.rcParams['axes.grid'] = True
@@ -15,7 +15,6 @@ qmargins = [0, 5, 10, 50, 90, 95, 100]
 # plt.rcParams['ps.useafm'] = True
 # plt.rcParams['pdf.use14corefonts'] = True
 # plt.rcParams['text.usetex'] = True
-
 
 def figure_path(name):
     '''
@@ -49,7 +48,43 @@ def figure_path(name):
 #     plt.margins(0.025, tight=True)
 
 
-# markers = {0: 'tickleft', 1: 'tickright', 2: 'tickup', 3: 'tickdown', 4: 'caretleft', 'D': 'diamond', 6: 'caretup', 7: 'caretdown', 's': 'square', '|': 'vline', '': 'nothing', 'None': 'nothing', 'x': 'x', 5: 'caretright', '_': 'hline', '^': 'triangle_up', None: 'nothing', 'd': 'thin_diamond', ' ': 'nothing', 'h': 'hexagon1', '+': 'plus', '*': 'star', ',': 'pixel', 'o': 'circle', '.': 'point', '1': 'tri_down', 'p': 'pentagon', '3': 'tri_left', '2': 'tri_up', '4': 'tri_right', 'H': 'hexagon2', 'v': 'triangle_down', '8': 'octagon', '<': 'triangle_left', '>': 'triangle_right'}
+# markers = {
+#     0: 'tickleft',
+#     1: 'tickright',
+#     2: 'tickup',
+#     3: 'tickdown',
+#     4: 'caretleft',
+#     'D': 'diamond',
+#     6: 'caretup',
+#     7: 'caretdown',
+#     's': 'square',
+#     '|': 'vline',
+#     '': 'nothing',
+#     'None': 'nothing',
+#     'x': 'x',
+#     5: 'caretright',
+#     '_': 'hline',
+#     '^': 'triangle_up',
+#     None: 'nothing',
+#     'd': 'thin_diamond',
+#     ' ': 'nothing',
+#     'h': 'hexagon1',
+#     '+': 'plus',
+#     '*': 'star',
+#     ',': 'pixel',
+#     'o': 'circle',
+#     '.': 'point',
+#     '1': 'tri_down',
+#     'p': 'pentagon',
+#     '3': 'tri_left',
+#     '2': 'tri_up',
+#     '4': 'tri_right',
+#     'H': 'hexagon2',
+#     'v': 'triangle_down',
+#     '8': 'octagon',
+#     '<': 'triangle_left',
+#     '>': 'triangle_right'}
+
 
 def _styles():
     # I can distinguish about six different colors from rainbow

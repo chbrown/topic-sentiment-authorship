@@ -1,6 +1,6 @@
 from tsa.models import Endpoint, create_session
+from tsa import logging
 
-import logging
 logger = logging.getLogger(__name__)
 
 

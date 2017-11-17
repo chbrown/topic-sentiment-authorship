@@ -17,5 +17,4 @@ config.InteractiveShell.pylab = 'osx'
 start_message = 'Dropping into IPython shell'
 end_message = 'Leaving IPython shell, resuming program.'
 
-shell = InteractiveShellEmbed(config=config,
-    banner1=start_message, exit_msg=end_message)
+shell = InteractiveShellEmbed(config=config, banner1=start_message, exit_msg=end_message)

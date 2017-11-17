@@ -1,4 +1,3 @@
-# -*- coding: utf-8 -*-
 '''tokenizer for tweets!  might be appropriate for other social media dialects too.
 general philosophy is to throw as little out as possible.
 development philosophy: every time you change a rule, do a diff of this

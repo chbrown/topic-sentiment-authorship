@@ -1,7 +1,7 @@
 import os.path
+from tsa import logging
 from tsa.science.corpora import MulticlassCorpus
 
-from tsa import logging
 logger = logging.getLogger(__name__)
 
 

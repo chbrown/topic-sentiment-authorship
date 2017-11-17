@@ -1,15 +1,14 @@
-# universals:
 import IPython
 import numpy as np
-from tsa.science import numpy_ext as npx
 
+from tsa import logging
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 from tsa.lib import datetime_extra
+from tsa.science import numpy_ext as npx
 from tsa.science import features, plot, timeseries
-from tsa import logging
-logger = logging.getLogger(__name__)
-
 from tsa.science.plot import plt
+
+logger = logging.getLogger(__name__)
 
 
 def plot_hashtag_volumes(analysis_options):

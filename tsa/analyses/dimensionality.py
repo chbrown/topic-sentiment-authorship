@@ -1,4 +1,8 @@
 import math
+import numpy as np
+import IPython
+
+from tsa.science import numpy_ext as npx
 
 
 def nball(n):
@@ -19,7 +23,6 @@ def curse_of_dimensionality(analysis_options):
     # yes, the volume decreases as you go down, but say you hold volume constant, at 1
     # then the radius of this nball where n > 3 would start to become extremely spiky
     # like a pufferfish at first, then like a sea urchin (no?)
-
 
 
 def harmonic_demo(analysis_options):
@@ -59,5 +62,3 @@ def harmonic_demo(analysis_options):
     plt.suptitle('color = c = 1 - a - b (where c > 0)')
 
     IPython.embed()
-
-

@@ -40,7 +40,8 @@ def binned_timeseries(times, array, time_units_per_bin=1, time_unit='D', statist
     # column by column (feature by feature)
     for col in range(array.shape[1]):
         result = scipy.stats.binned_statistic(times_floats, array[:, col],
-            statistic=statistic, bins=bins_floats)
+                                              statistic=statistic,
+                                              bins=bins_floats)
         bin_statistics, _, _ = result
         bin_statistics_array[:, col] = bin_statistics
 

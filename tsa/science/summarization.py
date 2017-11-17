@@ -4,7 +4,7 @@ from sklearn import metrics, cross_validation
 
 from tsa.science import numpy_ext as npx
 
-import logging
+from tsa import logging
 logger = logging.getLogger(__name__)
 
 
@@ -19,7 +19,9 @@ def metrics_summary(y_true, y_pred, labels=None, pos_label=1, average=None):
 
 def metrics_dict(y_true, y_pred, labels=None, pos_label=1, average=None):
     prfs_values = metrics.precision_recall_fscore_support(y_true, y_pred,
-        labels=labels, pos_label=pos_label, average=average)
+                                                          labels=labels,
+                                                          pos_label=pos_label,
+                                                          average=average)
     prfs_keys = ('precision', 'recall', 'f1', 'support')
     accuracy = metrics.accuracy_score(y_true, y_pred)
     # hamming loss is only different from 0-1 loss in multi-label scenarios

@@ -15,7 +15,7 @@ def create_session():
 
 class Base(object):
     def __init__(self, **kw):
-        if len(kw) > 0:
+        if kw:
             self.update(kw)
 
     def __json__(self):

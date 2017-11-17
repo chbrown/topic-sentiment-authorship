@@ -21,8 +21,6 @@ def read_xlsx(filepath, sheet_name=None, limit=None):
         for i, row in enumerate(rows):
             if i == limit:
                 break
-            # [map(unicode, row) for row in all_rows]
-            # value=value.encode('utf8')
             values = (cell.internal_value for cell in row)
             yield dict(zip(keys, values))
 
@@ -41,8 +39,7 @@ def formatter(value):
         return str(value)
     elif isinstance(value, int):
         return '%d' % value
-    else:
-        return '%0.3f' % value
+    return '%0.3f' % value
 
 
 class Printer(object):
@@ -65,7 +62,7 @@ class Printer(object):
     def add_headers(self, headers):
         # if there are any new strings in new_headers, emit a new line
         new_headers = set(headers) - set(self.headers)
-        if len(new_headers) > 0:
+        if new_headers:
             # hope the order wasn't TOO important
             self.headers.extend(new_headers)
             if self.headers_printed:

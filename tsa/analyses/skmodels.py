@@ -1,34 +1,18 @@
-# -*- coding: utf-8 -*-
-import IPython
-import numpy as np
-import pandas as pd
-from tsa.science import numpy_ext as npx
-import os.path
-
 from datetime import datetime
-
+import numpy as np
+from sklearn import cross_validation, linear_model, metrics
 from viz.format import quantiles
 from viz.geom import hist
 import iter8
 
-from sklearn import cross_validation
-from sklearn import linear_model
-from sklearn import metrics
-# from sklearn.feature_selection import SelectPercentile, SelectKBest
-# from sklearn.feature_selection import chi2, f_classif, f_regression
-
 from tsa import logging
-logger = logging.getLogger(__name__)
-
-from tsa.lib import cache, tabular, itertools
-from tsa.lib.timer import Timer
-from tsa.science import features
-from tsa.science.corpora import MulticlassCorpus
+from tsa.science import features, numpy_ext as npx
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
 from tsa.science.plot import plt, figure_path
 
 from tsa.data.sb5b.tweets import read_MulticlassCorpus as read_sb5b_MulticlassCorpus
 
+logger = logging.getLogger(__name__)
 
 
 def perceptron(analysis_options):
@@ -114,7 +98,7 @@ def simple(analysis_options):
         # model = linear_model.Lars(fit_intercept=False, normalize=True)
         model.fit(train_X, train_y)
         pred_y = model.predict(test_X)
-        IPython.embed(); exit()
+        # IPython.embed(); exit()
         accuracy = metrics.accuracy_score(test_y, pred_y)
         accuracies.append(accuracy)
         print('[%d] accuracy = %.4f' % (fold_index, accuracy))
@@ -234,9 +218,9 @@ def label_proportions():
     # for: republican = red
     # against: democrat = blue
     plt.hist(mdates.date2num(tweet_times[(y == label_ids['Against']) & train_mask]),
-        bins=mdates.date2num(bins), color='blue', label='Against')
+             bins=mdates.date2num(bins), color='blue', label='Against')
     plt.hist(mdates.date2num(tweet_times[(y == label_ids['For']) & train_mask]),
-        bins=mdates.date2num(bins), color='red', label='For')
+             bins=mdates.date2num(bins), color='red', label='For')
     plt.xticks(quarters)
     plt.legend()
 
@@ -248,9 +232,9 @@ def label_proportions():
     ax = plt.subplot(212)
     ax.xaxis.set_major_formatter(ticker.FuncFormatter(mdate_formatter))
     plt.hist(mdates.date2num(tweet_times[pred == label_ids['Against']]),
-        bins=mdates.date2num(bins), color='blue', label='Against')
+             bins=mdates.date2num(bins), color='blue', label='Against')
     plt.hist(mdates.date2num(tweet_times[pred == label_ids['For']]),
-        bins=mdates.date2num(bins), color='red', label='For')
+             bins=mdates.date2num(bins), color='red', label='For')
     plt.xticks(quarters)
     plt.legend()
 

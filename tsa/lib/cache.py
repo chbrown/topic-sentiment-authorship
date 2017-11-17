@@ -2,7 +2,7 @@ import os
 import string
 import pickle
 
-import logging
+from tsa import logging
 logger = logging.getLogger(__name__)
 logger.level = 1
 

@@ -22,12 +22,13 @@ for imp_importer, name, ispkg in pkgutil.iter_modules(tsa.analyses.__path__):
 
 def main():
     import argparse
-    parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter,
-        description='Primary entry point for tsa analyses')
+    parser = argparse.ArgumentParser(
+        description='Primary entry point for tsa analyses',
+        formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument('analysis', choices=analyses,
-        help='Analysis to run')
+                        help='Analysis to run')
     parser.add_argument('-v', '--verbose', action='store_true',
-        help='Log extra information')
+                        help='Log extra information')
     # parser.add_argument('--version', action='version',
     #     version=tsa.__version__)
     opts, _ = parser.parse_known_args()

@@ -1,5 +1,7 @@
 import os
 import sys
+import logging
+
 here = os.path.dirname(__file__) or os.curdir
 root = os.path.dirname(os.path.abspath(here))
 
@@ -10,7 +12,6 @@ logging_formats = {
     'original': '%(levelname)-8s %(asctime)14s (%(name)s): %(message)s',
 }
 
-import logging
 logging.captureWarnings(True)
 logging.basicConfig(format=logging_formats['interactive'], level=logging.INFO)
 
@@ -33,31 +34,36 @@ class Logger(logging.Logger):
             self._log(logging.NOTSET, msg, args, **kwargs)
 
     def __repr__(self):
-        return '<%s name=%s level=%d (effective=%d) parent=%s disabled=%d>' % (self.__class__.__name__,
-            self.name, self.level, self.getEffectiveLevel(), self.parent, self.disabled)
+        return '<{} name={} level={:d} (effective={:d}) parent={} disabled={:d}>'.format(
+            self.__class__.__name__,
+            self.name,
+            self.level,
+            self.getEffectiveLevel(),
+            self.parent,
+            self.disabled)
 
 
 logging.setLoggerClass(Logger)
 
 
-def stdout(bytes=''):
-    sys.stdout.write(bytes)
+def stdout(string=''):
+    sys.stdout.write(string)
     sys.stdout.flush()
 
 
-def stdoutn(bytes=''):
-    sys.stdout.write(bytes)
+def stdoutn(string=''):
+    sys.stdout.write(string)
     sys.stdout.write('\n')
     sys.stdout.flush()
 
 
-def stderr(bytes=''):
-    sys.stderr.write(bytes)
+def stderr(string=''):
+    sys.stderr.write(string)
     sys.stderr.flush()
 
 
-def stderrn(bytes=''):
-    sys.stderr.write(bytes)
+def stderrn(string=''):
+    sys.stderr.write(string)
     sys.stderr.write('\n')
     sys.stderr.flush()
 

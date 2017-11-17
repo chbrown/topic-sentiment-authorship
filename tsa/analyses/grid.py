@@ -1,37 +1,25 @@
-import IPython
 from itertools import groupby
+from collections import Counter
 import numpy as np
 import pandas as pd
-from tsa.science import numpy_ext as npx
-
-from collections import Counter
-# from datetime import datetime
+from sklearn import metrics, cross_validation
+from sklearn import linear_model
+from sklearn import naive_bayes
+import IPython
 
 import viz
 from viz.geom import hist
 
-from sklearn import metrics, cross_validation
-from sklearn import linear_model
-from sklearn import naive_bayes
-# from sklearn import svm
-# from sklearn import cluster, decomposition, ensemble, neighbors, neural_network, qda
-# from sklearn.feature_extraction.text import TfidfTransformer, CountVectorizer
-# from sklearn.feature_extraction import DictVectorizer
-# from tsa.lib.text import CountVectorizer
-# from sklearn.feature_selection import SelectPercentile, SelectKBest
-# from sklearn.feature_selection import chi2, f_classif, f_regression
-
-from tsa import stdout
+from tsa import stdout, logging
 from tsa.lib import tabular
 from tsa.lib.timer import Timer
 from tsa.models import Source, Document, create_session
+from tsa.science import numpy_ext as npx
 from tsa.science import features, models
 from tsa.science.corpora import MulticlassCorpus
 from tsa.science.plot import plt, figure_path, distinct_styles
 from tsa.science.summarization import metrics_dict
-# from tsa.science.summarization import explore_mispredictions, explore_uncertainty
 
-from tsa import logging
 logger = logging.getLogger(__name__)
 
 
@@ -40,8 +28,8 @@ def source_corpus(source_name):
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
     # assume the corpus is suitably balanced
-    corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
+    corpus.extract_features(lambda doc: doc.document,
+                            features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
     # corpus.extract_features(documents, features.liwc)
     # corpus.extract_features(documents, features.afinn)
     # corpus.extract_features(documents, features.anew)
@@ -58,8 +46,8 @@ def sb5b_source_corpus():
     polar_indices = np.in1d(corpus.y, polar_classes)
     corpus = corpus.subset(polar_indices)
     # ngram_max=2, min_df=0.001, max_df=0.95
-    corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
+    corpus.extract_features(lambda doc: doc.document,
+                            features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
     return corpus
 
 
@@ -73,8 +61,8 @@ def sample_corpus():
         filter(Source.name == 'twitter-sample').all()
     corpus = MulticlassCorpus(sb5b_documents + sample_documents)
     corpus.apply_labelfunc(lambda doc: doc.source.name)
-    corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
+    corpus.extract_features(lambda doc: doc.document,
+                            features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
 
     return corpus
 
@@ -87,8 +75,8 @@ def debate_corpus():
 
     corpus = MulticlassCorpus(documents)
     corpus.apply_labelfunc(lambda doc: doc.label)
-    corpus.extract_features(lambda doc: doc.document, features.ngrams,
-        ngram_max=2, min_df=2, max_df=1.0)
+    corpus.extract_features(lambda doc: doc.document,
+                            features.ngrams, ngram_max=2, min_df=2, max_df=1.0)
     return corpus
 
 
@@ -136,7 +124,6 @@ def representation(analysis_options):
     IPython.embed()
 
 
-
 def corpus_sandbox(analysis_options):
     print('Exploring SB-5 corpus')
     session = create_session()
@@ -163,13 +150,10 @@ def corpus_sandbox(analysis_options):
         # 'weareohio' in document.document.lower(), .document
         print(document.details.get('Source'), document.label)
 
-
     IPython.embed()
 
 
 def sb5_self_train(analysis_options):
-
-
     incestuous_model = linear_model.LogisticRegression(fit_intercept=False, penalty=penalty)
     incestuous_model.fit(unlabeled_corpus.X, unlabeled_pred_y)
     # apply model to data we know for sure
@@ -181,7 +165,7 @@ def sb5_self_train(analysis_options):
     # we want to compare the confidence of the bootstrap on the things it gets wrong vs. a straight logistic regression
 
     bootstrap_model = models.Bootstrap(linear_model.LogisticRegression,
-        fit_intercept=False, penalty=penalty, C=1.0)
+                                       fit_intercept=False, penalty=penalty, C=1.0)
     bootstrap_model.fit(labeled_corpus.X, labeled_corpus.y, n_iter=100, proportion=1.0)
     bootstrap_model.predict(labeled_corpus.X)
 
@@ -190,7 +174,6 @@ def sb5_self_train(analysis_options):
     print('bootstrap_model')
     hist(bootstrap_mean_coef)
     print('  {:.2%} coefs == 0'.format((bootstrap_mean_coef == 0).mean()))
-
 
 
 def grid_hists(analysis_options):
@@ -213,7 +196,7 @@ def grid_hist(corpus):
     coefs_variances = np.var(bootstrap_coefs, axis=0)
 
     bootstrap_coefs = bootstrap_model(X, y, n_iter=n_iter, proportion=0.5)
-    fit_intercept=False, penalty=penalty, C=C
+    # fit_intercept=False, penalty=penalty, C=C
 
     logger.info('coefs_means.shape = %s, coefs_variances.shape = %s', coefs_means.shape, coefs_variances.shape)
 
@@ -252,7 +235,6 @@ def many_models(analysis_options):
     # hrrm, kind of ugly
 
     IPython.embed()
-
 
 
 def sample_errors(analysis_options):
@@ -295,7 +277,6 @@ def sample_errors(analysis_options):
             print(viz.gloss.gloss([('', 'means')] + pairs + [('SUM', '%.2f' % sum(x_coefs))]))
 
         exit(IPython.embed())
-
 
 
 def grid_plot(corpus):
@@ -342,7 +323,8 @@ def grid_plot(corpus):
             for train_size in train_sizes:
                 if train_size < y.size:
                     folds = cross_validation.StratifiedShuffleSplit(y, n_iter=n_iter,
-                        train_size=train_size, test_size=None)
+                                                                    train_size=train_size,
+                                                                    test_size=None)
                     for train_indices, test_indices in folds:
                         yield model_name, model, corpus, train_indices, test_indices
 

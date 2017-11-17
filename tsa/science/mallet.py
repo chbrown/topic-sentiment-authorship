@@ -1,9 +1,8 @@
+import subprocess
+import tempfile
 import IPython
 # import numpy as np
 
-import subprocess
-import tempfile
-from sklearn import datasets
 
 def mallet(corpus, num_topics=100):
     '''
@@ -45,7 +44,7 @@ def mallet(corpus, num_topics=100):
     print('writing {:d} documents to {:s}'.format(len(corpus.data), data_tempfile_path))
     with open(data_tempfile_path, 'w') as data_tempfile_fd:
         for datum in corpus.data:
-            print(datum.id, datum.label, datum.document.encode('utf-8'), file=data_tempfile_fd)
+            print(datum.id, datum.label, datum.document, file=data_tempfile_fd)
 
     _, mallet_tempfile_path = tempfile.mkstemp(suffix='.mallet')
     _, stopwords_tempfile_path = tempfile.mkstemp(suffix='.stopwords')
@@ -54,12 +53,12 @@ def mallet(corpus, num_topics=100):
 
     print('writing mallet format to {:s}'.format(mallet_tempfile_path))
     print(subprocess.check_output(['mallet', 'import-file',
-        '--keep-sequence',  # required for topic modeling
-        '--token-regex', r'#?\w+',
-        '--remove-stopwords',
-        '--extra-stopwords', stopwords_tempfile_path,
-        '--input', data_tempfile_path,
-        '--output', mallet_tempfile_path]))
+                                   '--keep-sequence',  # required for topic modeling
+                                   '--token-regex', r'#?\w+',
+                                   '--remove-stopwords',
+                                   '--extra-stopwords', stopwords_tempfile_path,
+                                   '--input', data_tempfile_path,
+                                   '--output', mallet_tempfile_path]))
 
     _, state_tempfile_path = tempfile.mkstemp(suffix='.gz')
     _, topic_keys_tempfile_path = tempfile.mkstemp(suffix='.txt')
@@ -67,14 +66,13 @@ def mallet(corpus, num_topics=100):
     print('state file = {:s}, topic keys = {:s}, doc topics = {:s}'.format(
         state_tempfile_path, topic_keys_tempfile_path, doc_topics_tempfile_path))
     subprocess.Popen(['mallet', 'train-topics',
-        '--input', mallet_tempfile_path,
-        '--num-topics', str(num_topics),
-        '--optimize-interval', '10',
-        # '--optimize-burn-in', '20',
-        # '--num-iterations', str(num_iterations),
-        '--output-state', state_tempfile_path,
-        '--output-topic-keys', topic_keys_tempfile_path,
-        '--output-doc-topics', doc_topics_tempfile_path,
-    ])
+                      '--input', mallet_tempfile_path,
+                      '--num-topics', str(num_topics),
+                      '--optimize-interval', '10',
+                      # '--optimize-burn-in', '20',
+                      # '--num-iterations', str(num_iterations),
+                      '--output-state', state_tempfile_path,
+                      '--output-topic-keys', topic_keys_tempfile_path,
+                      '--output-doc-topics', doc_topics_tempfile_path])
 
     IPython.embed()

@@ -1,22 +1,22 @@
 import re
-import justext
 import html.parser
+import justext
 
 html_parser = html.parser.HTMLParser()
 english_stopwords = justext.get_stoplist('English')
 # (?:...) means do not return this group in the match
-url_re = re.compile('((?:https?://)?[-a-z0-9]+\.[-.a-z0-9]+/\S+)', re.I)
+url_re = re.compile(r'((?:https?://)?[-a-z0-9]+\.[-.a-z0-9]+/\S+)', re.I)
 
 
-def to_text(html):
-    paragraphs = justext.justext(html, english_stopwords)
+def to_text(html_string):
+    paragraphs = justext.justext(html_string, english_stopwords)
     # with justext 1.x, this used to be:
     # return = u'\n'.join(paragraph['text'] for paragraph in paragraphs if paragraph['class'] == 'good')
     return '\n'.join(paragraph.text for paragraph in paragraphs if not paragraph.is_boilerplate)
 
 
-def unescape(html):
-    return html_parser.unescape(html)
+def unescape(html_string):
+    return html_parser.unescape(html_string)
 
 
 def extract_urls(text):

@@ -34,7 +34,7 @@ def ngrams(documents, ngram_max=2, **kwargs):
         min_df = 2
         max_df = 1.0
         ngram_range = (1, 2)
-        token_pattern = ur'\S+'
+        token_pattern = ur'\\S+'
 
     **kwargs will be used in the text.CountVectorizer constructor.
 
@@ -75,8 +75,7 @@ def cooccurrences(documents, min_df=0.01, max_df=0.99):
             yield '-'.join(pair)
         return
 
-    vectorizer = CountVectorizer(tokenizer=tokenizer,
-        ngram_range=(1, 1), min_df=min_df, max_df=max_df)
+    vectorizer = CountVectorizer(tokenizer=tokenizer, ngram_range=(1, 1), min_df=min_df, max_df=max_df)
     values = vectorizer.fit_transform(documents)
     return (values, vectorizer.get_feature_names())
 

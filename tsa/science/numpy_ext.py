@@ -1,5 +1,5 @@
-import scipy
 import time
+import scipy
 import numpy as np
 
 
@@ -20,19 +20,24 @@ def _type_raise(prototype_array, force_dtype=None):
 def head_indices(array, n):
     return list(range(0, n))
 
+
 def tail_indices(array, n):
     return list(range(array.size - n, array.size))
+
 
 def median_indices(array, n):
     median = array.size // 2
     half_n = n // 2
     return list(range(median - half_n, median + half_n + 1))
 
+
 def edge_indices(array, n):
     return head_indices(array, n) + tail_indices(array, n)
 
+
 def edge_and_median_indices(array, n):
     return head_indices(array, n) + median_indices(array, n) + tail_indices(array, n)
+
 
 def bounds(a, axis=None):
     '''
@@ -41,9 +46,11 @@ def bounds(a, axis=None):
     '''
     return (np.min(a, axis=axis), np.max(a, axis=axis))
 
+
 def dist(a):
     '''Return an array that's proportional to a, but sums to 1.'''
     return a / a.sum()
+
 
 def exponential_decay(a, window=10, alpha=.5):
     # smoothing
@@ -56,6 +63,7 @@ def exponential_decay(a, window=10, alpha=.5):
     windows = [list(range(index - window, index)) for index in np.arange(1, a.size + 1)]
     windows = np.array(windows).clip(0)
     return (a[windows]*window_distribution).sum(axis=1)
+
 
 def margins(n):
     return list(range(0, n)) + list(range(-n, 0))
@@ -81,8 +89,7 @@ def hmean(xs, axis=0):
     a = np.array(xs)
     if (a > 0.0).all():
         return scipy.stats.hmean(a, axis=axis)
-    else:
-        return np.nan
+    return np.nan
 
 
 def logit(x):
@@ -118,8 +125,8 @@ def bool_mask_to_indices(array):
     return np.where(array)[0]
 
 
-def indices_to_bool_mask(indices, n=None):
-    bools = np.zeros(n or indices.size, dtype=bool)
+def indices_to_bool_mask(mask_indices, n=None):
+    bools = np.zeros(n or mask_indices.size, dtype=bool)
     bools[indices] = True
     return bools
 
@@ -228,7 +235,7 @@ def tfidf(array):
     '''
     Compute the TF-IDF matrix for a given array (i.e., some matrix of counts, documents as rows, tokens as columns)
     '''
-    ndocs, ndims = array.shape
+    ndocs, _ndims = array.shape
     # idf is a ndims-long vector
     idf = float(ndocs) / np.apply_along_axis(np.count_nonzero, 0, array)
     # if a term is rare, it will have a high idf

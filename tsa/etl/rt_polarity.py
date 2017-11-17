@@ -1,8 +1,9 @@
 import os
 from tsa import logging
+from tsa.models import Source, Document, create_session
+
 logger = logging.getLogger(__name__)
 
-from tsa.models import Source, Document, create_session
 DBSession = create_session()
 
 

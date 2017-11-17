@@ -11,6 +11,11 @@ class Timer(object):
     # timer.elapsed is the (floating point) number of seconds that it took
     print timer.elapsed
     '''
+    def __init__(self):
+        self.begin = None
+        self.end = None
+        self.elapsed = None
+
     def __enter__(self):
         self.begin = time.time()
         return self

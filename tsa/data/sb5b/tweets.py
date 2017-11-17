@@ -1,7 +1,8 @@
 import numpy as np
+from tsa import logging
 from tsa.lib import cache
 from tsa.science.corpora import MulticlassCorpus
-from tsa import logging
+
 logger = logging.getLogger(__name__)
 
 

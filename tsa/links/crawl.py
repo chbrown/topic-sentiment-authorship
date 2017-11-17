@@ -1,16 +1,16 @@
 #!/usr/bin/env python
-import requests
-import requests.exceptions as reqexc
 import socket
 import urllib.parse
-import sqlalchemy.exc as sqlexc
 from datetime import datetime
+import requests
+import requests.exceptions as reqexc
+import sqlalchemy.exc as sqlexc
 
 from tsa import stdoutn
 from tsa.lib import html
 from tsa.models import Endpoint, create_session
 
-import logging
+from tsa import logging
 logger = logging.getLogger(__name__)
 
 whitespace_translations = dict((ord(whitespace), ' ') for whitespace in '\t\n\r')
@@ -85,7 +85,7 @@ def tabulate(endpoints):
         text = endpoint.content.translate(whitespace_translations)
 
         line = '\t'.join([str(endpoint.id), trail, domain, text[:max_len]])
-        stdoutn(line.encode('latin1', 'ignore'))
+        stdoutn(line)
 
 
 def analyze_content_length(endpoints):
