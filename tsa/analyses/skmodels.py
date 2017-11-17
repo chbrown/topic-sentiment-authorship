@@ -3,9 +3,9 @@ import numpy as np
 from sklearn import cross_validation, linear_model, metrics
 from viz.format import quantiles
 from viz.geom import hist
-import iter8
 
 from tsa import logging
+from tsa.lib.itertools import sig_enumerate
 from tsa.science import features, numpy_ext as npx
 from tsa.science.summarization import metrics_dict  # explore_mispredictions, explore_uncertainty
 from tsa.science.plot import plt, figure_path
@@ -28,7 +28,7 @@ def perceptron(analysis_options):
     X, y = X[labeled_indices], y[labeled_indices]
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
+    for fold_index, (train_indices, test_indices) in sig_enumerate(folds, logger=logger):
         # Percepton penalty : None, l2 or l1 or elasticnet
         model = linear_model.Perceptron(penalty='l1')
         # model = linear_model.LogisticRegression(penalty='l2')
@@ -53,7 +53,7 @@ def read_ttv2_corpus(filepath):
     with open(filepath) as lines:
         headers = next(lines)
         # print 'ttv2 headers', headers
-        for i, line in iter8.sig_enumerate(lines, logger=logger):
+        for i, line in sig_enumerate(lines, logger=logger):
             yield tweets.TTV2.from_line(line)
 
 
@@ -86,7 +86,7 @@ def simple(analysis_options):
 
     accuracies = []
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
+    for fold_index, (train_indices, test_indices) in sig_enumerate(folds, logger=logger):
         # Percepton penalty : None, l2 or l1 or elasticnet
         test_X, test_y = X[test_indices], y[test_indices]
         train_X, train_y = X[train_indices], y[train_indices]

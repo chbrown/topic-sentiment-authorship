@@ -17,7 +17,6 @@ setup(
     zip_safe=False,
     install_requires=[
         'gensim == 0.8.6',
-        'iter8 == 0.0.2',
         'justext == 2.0.0',
         'openpyxl == 1.6.2',
         'psycopg2 == 2.5.1',

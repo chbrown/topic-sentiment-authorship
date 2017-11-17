@@ -1,11 +1,10 @@
 import numpy as np
-
-import iter8
-
 from sklearn import cross_validation, naive_bayes
-from tsa.science.summarization import metrics_dict
 
 from tsa import logging
+from tsa.lib.itertools import sig_enumerate
+from tsa.science.summarization import metrics_dict
+
 logger = logging.getLogger(__name__)
 
 
@@ -28,7 +27,7 @@ def rottentomatoes(analysis_options):
     # printer = tabular.Printer()
 
     folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
+    for fold_index, (train_indices, test_indices) in sig_enumerate(folds, logger=logger):
         test_X, test_y = X[test_indices], y[test_indices]
         train_X, train_y = X[train_indices], y[train_indices]
 

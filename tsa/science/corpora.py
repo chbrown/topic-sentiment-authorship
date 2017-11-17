@@ -1,8 +1,6 @@
 import numpy as np
 from scipy import sparse
 
-from tsa.science import features
-from tsa.science import numpy_ext as npx
 from tsa import logging
 logger = logging.getLogger(__name__)
 

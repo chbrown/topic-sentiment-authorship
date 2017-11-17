@@ -1,7 +1,7 @@
-# from operator import itemgetter
-# item_zero = itemgetter(0)
-# item_zero = lambda obj: obj.__getitem__[0]
-item_zero = lambda tup: tup[0]
+import signal
+import operator
+
+item_zero = operator.itemgetter(0)
 
 
 class Quota(object):
@@ -45,3 +45,32 @@ class Quota(object):
             pass
 
     # todo: add filter_with_key which would yield (key, item) pairs
+
+
+def sig_enumerate(seq, start=0, logger=None):
+    '''
+    Just like the built-in enumerate(), but also respond to SIGINFO (Ctrl-T) with a
+    line of output to the given / default logger.
+
+    Copy and pasted from iter8.generic
+    '''
+    if logger is None:
+        import logging
+        logger = logging.getLogger('SIGINFO')
+
+    message = 'Iteration: -1'
+
+    def handler(signum, frame):
+        logger.info(message)
+
+    logger.debug('enumerating... type Ctrl-T to show current iteration')
+
+    signum = signal.SIGINFO
+    old_handler = signal.signal(signum, handler)
+    try:
+        for i, x in enumerate(seq, start=start):
+            message = 'Iteration: %d' % i
+            yield i, x
+    finally:
+        # put the original signal back
+        signal.signal(signum, old_handler)

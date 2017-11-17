@@ -3,7 +3,7 @@ import sklearn.feature_selection
 import sklearn.linear_model
 from tsa import logging
 from tsa.science import numpy_ext as npx
-import iter8
+from tsa.lib.itertools import sig_enumerate
 
 logger = logging.getLogger(__name__)
 
@@ -32,7 +32,7 @@ class Bootstrap(object):
         self.coefs_ = np.zeros((n_iter, n_features))
         self.classes_ = np.unique(y)
         folds = npx.bootstrap(y.size, n_iter=n_iter, proportion=proportion)
-        for fold, (train_indices, _) in iter8.sig_enumerate(folds, logger=logger):
+        for fold, (train_indices, _) in sig_enumerate(folds, logger=logger):
             model = self.ClassificationModel(**self.model_args)
             model.fit(X[train_indices, :], y[train_indices])
             self.coefs_[fold, :] = model.coef_.ravel()

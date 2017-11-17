@@ -5,9 +5,9 @@ import IPython
 import viz
 from viz.format import quantiles
 from viz.geom import hist
-import iter8
 
 from tsa import logging
+from tsa.lib.itertools import sig_enumerate
 from tsa.models import Source, Document, create_session
 from tsa.science import features, models, timeseries, numpy_ext as npx
 from tsa.science.corpora import MulticlassCorpus
@@ -169,7 +169,7 @@ def oracle(analysis_options):
         # return x + 3
     # np.fromfunction(
 
-    for i, _ in iter8.sig_enumerate(list(range(100)), logger=logger):
+    for i, _ in sig_enumerate(list(range(100)), logger=logger):
         print('Iteration #%d' % i)
         # for each i in the top 100 training examples
         # split indices into:
@@ -441,7 +441,7 @@ def standard(analysis_options):
     random_lr_coefs = model.coef_.ravel()
 
     # folds = cross_validation.KFold(y.size, 10, shuffle=True)
-    # for fold_index, (train_indices, test_indices) in iter8.sig_enumerate(folds, logger=logger):
+    # for fold_index, (train_indices, test_indices) in sig_enumerate(folds, logger=logger):
     #     test_X, test_y = X[test_indices], y[test_indices]
     #     train_X, train_y = X[train_indices], y[train_indices]
     #     model.fit(train_X, train_y)
