@@ -1,5 +1,7 @@
 '''emoticon recognition via patterns.  tested on english-language twitter, but
-probably works for other social media dialects.'''
+probably works for other social media dialects.
+
+Source: https://github.com/brendano/tweetmotif'''
 
 __author__ = '''Brendan O'Connor (anyall.org, brenocon@gmail.com)'''
 __version__ = '''april 2009'''
