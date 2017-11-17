@@ -18,7 +18,7 @@ def run():
     for filepath in glob.glob(os.path.join(dirpath, '*/*.txt')):
         # filename format: ###_@@@@@@_%%%%$$$_PMV
         #            e.g., 052_400011_0327044_DON
-        print filepath
+        print(filepath)
         m = re.search(r'\d{3}_\d{6}_\d{7}_(I|D|R|X)(M|O)(Y|N).txt$', filepath)
         party, mentioned, vote = m.groups()
         label = 'For' if vote == 'Y' else 'Against'

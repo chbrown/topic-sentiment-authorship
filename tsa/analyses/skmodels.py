@@ -54,20 +54,20 @@ def perceptron(analysis_options):
 
         pred_y = model.predict(test_X)
         result = metrics_dict(test_y, pred_y)
-        print 'Accuracy:', result['accuracy']
+        print('Accuracy:', result['accuracy'])
         coefs = model.coef_.ravel()
         # mid_coefs = coefs[np.abs(coefs) < 1]
 
         hist(coefs)
         quantiles(coefs, qs=qmargins)
-        print 'sparsity (fraction of coef == 0)', (coefs == 0).mean()
-        print
+        print('sparsity (fraction of coef == 0)', (coefs == 0).mean())
+        print()
 
 
 def read_ttv2_corpus(filepath):
     from twilight.lib import tweets
     with open(filepath) as lines:
-        headers = lines.next()
+        headers = next(lines)
         # print 'ttv2 headers', headers
         for i, line in iter8.sig_enumerate(lines, logger=logger):
             yield tweets.TTV2.from_line(line)
@@ -95,7 +95,7 @@ def simple(analysis_options):
     y = corpus.y[selected_indices]
 
     X = X.tocsr()  # make X sliceable
-    print 'X =', X.shape, 'y =', y.shape
+    print('X =', X.shape, 'y =', y.shape)
 
     # print "Using linear_model.LogisticRegression(penalty='l2')"
     # X = X.toarray()  # make X LARS-able
@@ -117,8 +117,8 @@ def simple(analysis_options):
         IPython.embed(); exit()
         accuracy = metrics.accuracy_score(test_y, pred_y)
         accuracies.append(accuracy)
-        print '[%d] accuracy = %.4f' % (fold_index, accuracy)
-    print 'mean accuracy = %.4f' % (np.mean(accuracies))
+        print('[%d] accuracy = %.4f' % (fold_index, accuracy))
+    print('mean accuracy = %.4f' % (np.mean(accuracies)))
 
 
 def label_proportions():
@@ -153,21 +153,21 @@ def label_proportions():
         model = linear_model.LogisticRegression(penalty='l2')
         model.fit(X[train_indices, :], y[train_indices])
 
-        print
-        print '# model trained on "%s" (%d samples)' % (train_name, train_indices.size)
+        print()
+        print('# model trained on "%s" (%d samples)' % (train_name, train_indices.size))
         # now predict using the model just trained
 
         balanced_labels_pred = model.predict(X[balanced_labels_indices, :])
-        print 'predictions on balanced-labels:', npx.table(balanced_labels_pred, label_names)
-        print '  against / total:', (balanced_labels_pred == label_ids['Against']).mean()
+        print('predictions on balanced-labels:', npx.table(balanced_labels_pred, label_names))
+        print('  against / total:', (balanced_labels_pred == label_ids['Against']).mean())
 
         all_labels_pred = model.predict(X[all_labels_indices, :])
-        print 'predictions on all-labels:', npx.table(all_labels_pred, label_names)
-        print '  against / total:', (all_labels_pred == label_ids['Against']).mean()
+        print('predictions on all-labels:', npx.table(all_labels_pred, label_names))
+        print('  against / total:', (all_labels_pred == label_ids['Against']).mean())
 
         all_pred = model.predict(X)
-        print 'predictions on everything:', npx.table(all_pred, label_names)
-        print '  against / total:', (all_pred == label_ids['Against']).mean()
+        print('predictions on everything:', npx.table(all_pred, label_names))
+        print('  against / total:', (all_pred == label_ids['Against']).mean())
 
 
     # y.size = train_mask.size = 106703
@@ -287,7 +287,7 @@ def explore_texts(corpus):
 
     # print len(list(find(texts, ['issue2', 'sb5', 'weareohio'])))
     for text in skip(texts, keywords):
-        print text
+        print(text)
 
     # any_texts = map(lambda text: any([(keyword in text) ]), texts)
      # [text for text in texts if ]

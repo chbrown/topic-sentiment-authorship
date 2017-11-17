@@ -9,13 +9,13 @@ def nball(n):
 
 def curse_of_dimensionality(analysis_options):
     for n in range(20):
-        print 'n', n
+        print('n', n)
         volume = nball(n)
-        print '(nball) volume', volume
+        print('(nball) volume', volume)
         cube = 2.0**n
-        print 'containing cube', cube
-        print 'volume/cube', volume / cube
-        print
+        print('containing cube', cube)
+        print('volume/cube', volume / cube)
+        print()
     # yes, the volume decreases as you go down, but say you hold volume constant, at 1
     # then the radius of this nball where n > 3 would start to become extremely spiky
     # like a pufferfish at first, then like a sea urchin (no?)
@@ -23,8 +23,8 @@ def curse_of_dimensionality(analysis_options):
 
 
 def harmonic_demo(analysis_options):
-    print 'This prints a sort of Dirichlet / joint probability space'
-    print 'and displays the value of the harmonic mean'
+    print('This prints a sort of Dirichlet / joint probability space')
+    print('and displays the value of the harmonic mean')
 
     ticks = np.arange(100) + 1.0
     grid = (ticks / ticks.max())

@@ -42,30 +42,30 @@ def mallet(corpus, num_topics=100):
     # print 'writing svmlight file', svmlight_tempfile_path
     # datasets.dump_svmlight_file(corpus.X, corpus.y, svmlight_tempfile_path, zero_based=False)
     _, data_tempfile_path = tempfile.mkstemp(suffix='.txt')
-    print 'writing {:d} documents to {:s}'.format(len(corpus.data), data_tempfile_path)
+    print('writing {:d} documents to {:s}'.format(len(corpus.data), data_tempfile_path))
     with open(data_tempfile_path, 'w') as data_tempfile_fd:
         for datum in corpus.data:
-            print >> data_tempfile_fd, datum.id, datum.label, datum.document.encode('utf-8')
+            print(datum.id, datum.label, datum.document.encode('utf-8'), file=data_tempfile_fd)
 
     _, mallet_tempfile_path = tempfile.mkstemp(suffix='.mallet')
     _, stopwords_tempfile_path = tempfile.mkstemp(suffix='.stopwords')
     with open(stopwords_tempfile_path, 'w') as stopwords_tempfile_fd:
         stopwords_tempfile_fd.write('\n'.join(extra_stopwords))
 
-    print 'writing mallet format to {:s}'.format(mallet_tempfile_path)
-    print subprocess.check_output(['mallet', 'import-file',
+    print('writing mallet format to {:s}'.format(mallet_tempfile_path))
+    print(subprocess.check_output(['mallet', 'import-file',
         '--keep-sequence',  # required for topic modeling
         '--token-regex', r'#?\w+',
         '--remove-stopwords',
         '--extra-stopwords', stopwords_tempfile_path,
         '--input', data_tempfile_path,
-        '--output', mallet_tempfile_path])
+        '--output', mallet_tempfile_path]))
 
     _, state_tempfile_path = tempfile.mkstemp(suffix='.gz')
     _, topic_keys_tempfile_path = tempfile.mkstemp(suffix='.txt')
     _, doc_topics_tempfile_path = tempfile.mkstemp(suffix='.txt')
-    print 'state file = {:s}, topic keys = {:s}, doc topics = {:s}'.format(
-        state_tempfile_path, topic_keys_tempfile_path, doc_topics_tempfile_path)
+    print('state file = {:s}, topic keys = {:s}, doc topics = {:s}'.format(
+        state_tempfile_path, topic_keys_tempfile_path, doc_topics_tempfile_path))
     subprocess.Popen(['mallet', 'train-topics',
         '--input', mallet_tempfile_path,
         '--num-topics', str(num_topics),

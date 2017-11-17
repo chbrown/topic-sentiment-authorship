@@ -33,7 +33,7 @@ def run():
 
     with open(sample_filepath) as lines:
         # chop off headers
-        headers = lines.next()
+        headers = next(lines)
         for line in lines:
             # no label
             document = Document(source_id=source.id, **transform(line))

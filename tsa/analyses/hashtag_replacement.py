@@ -90,7 +90,7 @@ def given_labels():
     label_ids = dict((label_name, label_index) for label_index, label_name in enumerate(label_names))
 
     y = np.array([label_ids[label] for label in labels])
-    count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 1), token_pattern=ur'\b\S+\b')
+    count_vectorizer = CountVectorizer(min_df=2, max_df=0.99, ngram_range=(1, 1), token_pattern=r'\b\S+\b')
     corpus_count_vectors = count_vectorizer.fit_transform(texts)
     dimension_names = np.array(count_vectorizer.get_feature_names())
     X = corpus_count_vectors.toarray()
@@ -129,7 +129,7 @@ def explore_confusion_matrix(test_y, pred_y, label_names):
     # along the top are what model classified them as
     # so for a single row, the things that are not in that row's diagonal are what are most conflated with that row's hashtag
     confusion_counts = metrics.confusion_matrix(test_y, pred_y)
-    print pd.DataFrame(confusion_counts, index=label_names, columns=label_names)
+    print(pd.DataFrame(confusion_counts, index=label_names, columns=label_names))
 
 
 def explore_labels(label_names, dimension_names, coef_):
@@ -141,4 +141,4 @@ def explore_labels(label_names, dimension_names, coef_):
         label_coef = coef_[label_index, :]
         hist(label_coef, range=(-2, 2))
         ranked_dimensions = label_coef.argsort()
-        print 'dimensions of extreme coefficients:', dimension_names[ranked_dimensions[margins(5)]]
+        print('dimensions of extreme coefficients:', dimension_names[ranked_dimensions[margins(5)]])

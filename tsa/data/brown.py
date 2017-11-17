@@ -9,4 +9,4 @@ def read(limit=None, maxlen=10000):
             if i == limit:
                 break
 
-        print [line.strip()][:maxlen]
+        print([line.strip()][:maxlen])

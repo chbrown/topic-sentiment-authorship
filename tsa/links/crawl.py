@@ -13,7 +13,7 @@ from tsa.models import Endpoint, create_session
 import logging
 logger = logging.getLogger(__name__)
 
-whitespace_translations = dict((ord(whitespace), u' ') for whitespace in u'\t\n\r')
+whitespace_translations = dict((ord(whitespace), ' ') for whitespace in '\t\n\r')
 
 
 def add_url(url, parent_id=None):
@@ -24,10 +24,10 @@ def add_url(url, parent_id=None):
 
     try:
         DBSession.commit()
-    except sqlexc.IntegrityError, exc:
+    except sqlexc.IntegrityError as exc:
         # simply ignore duplicates
         DBSession.rollback()
-        print exc
+        print(exc)
 
 
 def process_untried_endpoints():
@@ -45,7 +45,7 @@ def process_untried_endpoints():
         endpoint = query.first()
         if not endpoint:
             break
-        print endpoint.id, endpoint.url
+        print(endpoint.id, endpoint.url)
 
         # one of three things happens:
         try:
@@ -70,7 +70,7 @@ def process_untried_endpoints():
             # 3. set endpoint.error
             endpoint.error = datetime.utcnow()
         except Exception:
-            print endpoint.url
+            print(endpoint.url)
             raise
 
         DBSession.commit()
@@ -84,7 +84,7 @@ def tabulate(endpoints):
         domain = urlparse.urlparse(endpoint.url).netloc.lstrip('www.')
         text = endpoint.content.translate(whitespace_translations)
 
-        line = u'\t'.join([str(endpoint.id), trail, domain, text[:max_len]])
+        line = '\t'.join([str(endpoint.id), trail, domain, text[:max_len]])
         stdoutn(line.encode('latin1', 'ignore'))
 
 

@@ -33,4 +33,4 @@ def stdin_extract_urls():
     for line in sys.stdin:
         urls = extract_urls(line)
         for url in urls:
-            print url
+            print(url)

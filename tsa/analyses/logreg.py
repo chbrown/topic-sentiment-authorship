@@ -105,25 +105,25 @@ def sb5_confidence(analysis_options):
 
         # plt.cla()
         # log reg
-        print 'logreg accuracy {:.2%}'.format(
-            metrics.accuracy_score(test_corpus.y, logreg_pred_y))
-        print 'histogram of logreg proba hmean on misclassifications'
+        print('logreg accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, logreg_pred_y)))
+        print('histogram of logreg proba hmean on misclassifications')
         logreg_proba_hmean = npx.hmean(
             logreg_pred_proba[test_corpus.y != logreg_pred_y], axis=1)
         hist(logreg_proba_hmean)
-        print 'logreg max pred mean', logreg_pred_proba.max(axis=1).mean()
+        print('logreg max pred mean', logreg_pred_proba.max(axis=1).mean())
         # print logreg_pred_proba.mean(axis=0)
         # plt.figure(0)
         # plt.hist(logreg_pred_proba)
 
         # bootstrap
-        print 'bootstrap accuracy {:.2%}'.format(
-            metrics.accuracy_score(test_corpus.y, bootstrap_pred_y))
-        print 'histogram of bootstrap proba hmean on misclassifications'
+        print('bootstrap accuracy {:.2%}'.format(
+            metrics.accuracy_score(test_corpus.y, bootstrap_pred_y)))
+        print('histogram of bootstrap proba hmean on misclassifications')
         bootstrap_proba_hmean = npx.hmean(
             bootstrap_pred_proba[test_corpus.y != bootstrap_pred_y], axis=1)
         hist(bootstrap_proba_hmean)
-        print 'bootstrap max pred mean', bootstrap_pred_proba.max(axis=1).mean()
+        print('bootstrap max pred mean', bootstrap_pred_proba.max(axis=1).mean())
         # plt.figure(1)
         # plt.hist(bootstrap_pred_proba)
 
@@ -182,7 +182,7 @@ def oracle(analysis_options):
     # np.fromfunction(
 
     for i, _ in iter8.sig_enumerate(range(100), logger=logger):
-        print 'Iteration #%d' % i
+        print('Iteration #%d' % i)
         # for each i in the top 100 training examples
         # split indices into:
         #   1) the ones we've picked
@@ -197,11 +197,11 @@ def oracle(analysis_options):
             # add the given to the already used indices and test it out
             candidate_indices = np.append(current_indices, index)
             accuracy = logreg_accuracy(X, y, candidate_indices)
-            print candidate_indices, '=', accuracy
+            print(candidate_indices, '=', accuracy)
             return accuracy
 
         candidate_indices = all_indices[~used_mask]
-        print 'testing out %d indices' % candidate_indices.size
+        print('testing out %d indices' % candidate_indices.size)
         accuracies = map(accuracy_with_index, candidate_indices)
 
         df = pd.DataFrame({'added_index': candidate_indices, 'accuracy': accuracies})
@@ -209,7 +209,7 @@ def oracle(analysis_options):
         margins = range(0, 10) + range(len(df) - 10, len(df))
         # pd.options.display.max_rows = 20
         # pd.options.display.show_dimensions = False
-        print df.ix[margins]
+        print(df.ix[margins])
         # print df.tail()
         # table = np.array((candidate_indices, np.array(accuracies)), dtype=[('added_index', int), ('accuracy', float)])
         # print np.column_stack((candidate_indices, accuracies))
@@ -224,7 +224,7 @@ def oracle(analysis_options):
             used_indices = all_indices[used_mask]
             top_tweets = np.array(corpus.tweets)[selected_indices][used_indices]
             for tweet in top_tweets:
-                print tweet['Label'], tweet['Tweet']
+                print(tweet['Label'], tweet['Tweet'])
 
 
 
@@ -234,15 +234,15 @@ def binned_accuracy(values, true_y, pred_y, n_bins=10):
     bounds = npx.bounds(values)
     # this argsort / order could be parameterized (along with the message)
     order = np.argsort(values)
-    print 'Bin from lowest (0) to highest (%d)' % (n_bins - 1)
+    print('Bin from lowest (0) to highest (%d)' % (n_bins - 1))
     bins = n_bins * npx.indices(order) / order.size
     for bin_i in range(n_bins):
         indices = order[bins == bin_i]
         hist(values[indices], bounds)
         mean = values[indices].mean()
-        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
+        print('Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
             bin_i, indices.size, mean,
-            metrics.accuracy_score(true_y[indices], pred_y[indices]))
+            metrics.accuracy_score(true_y[indices], pred_y[indices])))
 
 
 def confidence(analysis_options):
@@ -334,7 +334,7 @@ def confidence(analysis_options):
     # bins = np.digitize(biased_transformed, percentiles)
     # extreme_50_indices = (bins == 1) | (bins == 4)
     # middle_50_indices = (bins == 2) | (bins == 3)
-    print 'Biased overall accuracy: %.4f' % metrics.accuracy_score(test_y, biased_pred_y)
+    print('Biased overall accuracy: %.4f' % metrics.accuracy_score(test_y, biased_pred_y))
     # np.linspace(0, 10, )
     # for i in range:
     IPython.embed(); raise SystemExit(91)
@@ -345,16 +345,16 @@ def confidence(analysis_options):
     # order = np.argsort(-np.abs(biased_transformed))
 
     nbins = 10
-    print 'Bin from lowest (0) to highest (%d)' % (nbins - 1)
+    print('Bin from lowest (0) to highest (%d)' % (nbins - 1))
     order = np.argsort(biased_transformed)
     bins = nbins * npx.indices(order) / order.size
     for bin_i in set(bins):
         indices = order[bins == bin_i]
         hist(biased_transformed[indices], bounds)
         transform_mean = biased_transformed[indices].mean()
-        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
+        print('Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
             bin_i, indices.size, transform_mean,
-            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
+            metrics.accuracy_score(test_y[indices], biased_pred_y[indices])))
 
 
 
@@ -365,16 +365,16 @@ def confidence(analysis_options):
         indices = npx.indices(biased_transformed)[bins == bin_i]
         hist(biased_transformed[indices], bounds)
         transform_mean = biased_transformed[indices].mean()
-        print 'Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
+        print('Accuracy over bin %d (N=%d, mean=%0.3f): %.4f' % (
             bin_i, indices.size, transform_mean,
-            metrics.accuracy_score(test_y[indices], biased_pred_y[indices]))
+            metrics.accuracy_score(test_y[indices], biased_pred_y[indices])))
 
     extreme_50_indices = (bins == 1) | (bins == 4)
     middle_50_indices = (bins == 2) | (bins == 3)
-    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
-        test_y[middle_50_indices], biased_pred_y[middle_50_indices])
-    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
-        test_y[extreme_50_indices], biased_pred_y[extreme_50_indices])
+    print('Accuracy over middle: %.4f' % metrics.accuracy_score(
+        test_y[middle_50_indices], biased_pred_y[middle_50_indices]))
+    print('Accuracy over extremes: %.4f' % metrics.accuracy_score(
+        test_y[extreme_50_indices], biased_pred_y[extreme_50_indices]))
 
 
 
@@ -383,11 +383,11 @@ def confidence(analysis_options):
     # hist(transformed[middle_50_indices])
     # 1.6521[▃▃▄▃▅▄▅▅▅▅▆▅▇▆▇▇▆▇▆▉▆▆▇▆▆▆▅▅]5.5088
     # print (gold_y == bootstrap_pred_y).mean()
-    print 'Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y)
-    print 'Accuracy over middle: %.4f' % metrics.accuracy_score(
-        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices])
-    print 'Accuracy over extremes: %.4f' % metrics.accuracy_score(
-        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices])
+    print('Bootstrap overall accuracy: %.4f' % metrics.accuracy_score(test_y, bootstrap_pred_y))
+    print('Accuracy over middle: %.4f' % metrics.accuracy_score(
+        test_y[middle_50_indices], bootstrap_pred_y[middle_50_indices]))
+    print('Accuracy over extremes: %.4f' % metrics.accuracy_score(
+        test_y[extreme_50_indices], bootstrap_pred_y[extreme_50_indices]))
 
 
 
@@ -401,8 +401,8 @@ def confidence(analysis_options):
     # bp.show()
 
 
-    print 'bootstrap LogLoss:', metrics.log_loss(test_y, bootstrap_pred_probabilities)
-    print 'biased LogLoss:', metrics.log_loss(test_y, biased_pred_probabilities)
+    print('bootstrap LogLoss:', metrics.log_loss(test_y, bootstrap_pred_probabilities))
+    print('biased LogLoss:', metrics.log_loss(test_y, biased_pred_probabilities))
     # probabilistic models, like LogReg, can give us log loss
 
     # Positive class probabilities are computed as
@@ -437,12 +437,12 @@ def standard(analysis_options):
     coefs_means = np.mean(coefs, axis=0)
     coefs_variances = np.var(coefs, axis=0)
 
-    print 'coefs_means'
+    print('coefs_means')
     hist(coefs_means)
     quantiles(coefs_means, qs=qmargins)
     # sample_table(coefs_means, group_size=25)
 
-    print 'coefs_variances'
+    print('coefs_variances')
     hist(coefs_variances)
     quantiles(coefs_variances, qs=qmargins)
     # sample_table(coefs_variances, group_size=25)
@@ -498,7 +498,7 @@ def standard(analysis_options):
 
     features = np.arange(X.shape[1])
     bin_variance = np.zeros(X.shape[1])
-    print 'when binned by day, what features have the greatest variance?'
+    print('when binned by day, what features have the greatest variance?')
     for feature in features:
         counts = X[:, feature].toarray().ravel()
         bin_edges, bin_values = timeseries.binned_timeseries(times, counts, 7, 'D')
@@ -516,7 +516,7 @@ def standard(analysis_options):
     plt.cla()
     plt.scatter(totals, coefs_means, alpha=0.3)
     selection = order[:10]
-    print 'tops:', corpus.feature_names[selection]
+    print('tops:', corpus.feature_names[selection])
 
     # convention: order is most extreme first
     order = np.abs(coefs_means).argsort()[::-1]
@@ -525,7 +525,7 @@ def standard(analysis_options):
 
     selection = order[:12]
     # selection = order[-10:]
-    print 'selected features:', corpus.feature_names[selection]
+    print('selected features:', corpus.feature_names[selection])
 
 
     # plt.plot(a)
@@ -544,7 +544,7 @@ def standard(analysis_options):
             bin_edges, bin_values = timeseries.binned_timeseries(
                 corpus.times, counts, time_units_per_bin, time_unit)
             smoothed_bin_values = npx.exponential_decay(bin_values, window=window, alpha=alpha)
-            style_kwargs = style_iter.next()
+            style_kwargs = next(style_iter)
             # plt.plot(bin_edges, bin_values,
             #     drawstyle='steps-post', **style_kwargs)
             plt.plot(bin_edges, smoothed_bin_values, label=corpus.feature_names[feature], **style_kwargs)

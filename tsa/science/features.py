@@ -70,7 +70,7 @@ def cooccurrences(documents, min_df=0.01, max_df=0.99):
     def tokenizer(document):
         # itertools.combinations, compared to itertools.permutations, will
         # return a list of sets, rather than tuples, all 2-long
-        tokens = re.findall(ur'(?u)\b\w\w+\b', document)
+        tokens = re.findall(r'(?u)\b\w\w+\b', document)
         for pair in itertools.combinations(tokens, 2):
             yield '-'.join(pair)
         return
@@ -89,7 +89,7 @@ def hashtags(documents, min_df=1):
     #     hashtags = text.hashtags(document)
     #     counter.update(hashtags)
     # regex flags=re.UNICODE
-    vectorizer = CountVectorizer(token_pattern=ur'#\w+', lowercase=True, min_df=min_df)
+    vectorizer = CountVectorizer(token_pattern=r'#\w+', lowercase=True, min_df=min_df)
     values = vectorizer.fit_transform(documents)
     return (values, vectorizer.get_feature_names())
 

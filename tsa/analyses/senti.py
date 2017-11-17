@@ -50,7 +50,7 @@ def rottentomatoes(analysis_options):
 
         result = metrics_dict(test_y, pred_y)
         # print 'Prediction result:', result
-        print 'Prediction accuracy:%s' % result['accuracy']
+        print('Prediction accuracy:%s' % result['accuracy'])
 
         # print metrics.accuracy_score(y, pred_y)
 

@@ -28,7 +28,7 @@ def plot_hashtag_volumes(analysis_options):
     # coefs_variances = np.var(coefs, axis=0)
 
     added_indices = corpus.apply_features(corpus.documents, features.hashtags)
-    print 'After extracting hashtags: %s' % corpus.X.shape
+    print('After extracting hashtags: %s' % corpus.X.shape)
 
     # 1. full set of data
     X = corpus.X.tocsr()

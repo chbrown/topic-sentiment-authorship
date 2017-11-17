@@ -22,5 +22,5 @@ def hashtags(text, case_sensitive=False):
     if not case_sensitive:
         # by default, it'll lowercase the input
         text = text.lower()
-    for match in re.finditer(ur'#\w+', text):  # , flags=re.UNICODE
+    for match in re.finditer(r'#\w+', text):  # , flags=re.UNICODE
         yield match.group(0)

@@ -117,15 +117,15 @@ def links_gensim(analysis_options):
     # sims = index[query]
 
     tokens_per_topic = 15
-    print
+    print()
     for topic_i in range(topic_model.num_topics):
         topic = topic_model.show_topic(topic_i, topn=tokens_per_topic)
         # tokens = [dictionary[int(key)] for _, key in lda.show_topic(i)]
         ratios, tokens = zip(*topic)
-        print 'Topic %d (%0.4f > ratio > %0.4f):' % (topic_i, ratios[0], ratios[-1])
-        print ' ', ', '.join(tokens)
+        print('Topic %d (%0.4f > ratio > %0.4f):' % (topic_i, ratios[0], ratios[-1]))
+        print(' ', ', '.join(tokens))
 
-    print 'analyzing total topic alignments:'
+    print('analyzing total topic alignments:')
     topic_indices = range(num_topics)
     topics_sums = defaultdict(int)
     topics_count_firsts = defaultdict(int)
@@ -141,10 +141,10 @@ def links_gensim(analysis_options):
             topics_count_seconds[doc_topics_sorted[1][0]] += 1
 
     for topic_index in topic_indices:
-        print 'Topic %d: count[1]=%d, count[2]=%d, sum=%0.2f' % (topic_index,
-            topics_count_firsts[topic_index], topics_count_seconds[topic_index], topics_sums[topic_index])
+        print('Topic %d: count[1]=%d, count[2]=%d, sum=%0.2f' % (topic_index,
+            topics_count_firsts[topic_index], topics_count_seconds[topic_index], topics_sums[topic_index]))
 
-    print 'previewing 10 endpoints'
+    print('previewing 10 endpoints')
     # look at only the first 10 endpoint.
     # yes, we're testing on our training data, but it's for a good cause.
     for endpoint in islice(endpoints, 10):
@@ -156,13 +156,13 @@ def links_gensim(analysis_options):
         # doc_topics is now a list of (topic_index, ratio) tuples, i.e.,
         #   doc_topics.sum(_._2) == 1
         doc_topics_sorted = sorted(doc_topics, key=lambda tup: tup[1], reverse=True)
-        print
-        print '-'*80
-        print
-        print 'top', doc_topics_sorted[0]
-        print 'all', doc_topics
-        print
-        print endpoint['content']
+        print()
+        print('-'*80)
+        print()
+        print('top', doc_topics_sorted[0])
+        print('all', doc_topics)
+        print()
+        print(endpoint['content'])
 
 
 def topics(num_topics=5):
@@ -186,6 +186,6 @@ def topics(num_topics=5):
         topic_model = build_topic_model(sub_X[:, sub_dims], dimension_names[sub_dims],
             tfidf_transform=True, num_topics=num_topics)
 
-        print '---'
-        print label_i, ':', label_name
+        print('---')
+        print(label_i, ':', label_name)
         explore_topics(topic_model)

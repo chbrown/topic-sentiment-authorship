@@ -59,7 +59,7 @@ def run():
         reader = csv.DictReader(fd, delimiter='\t', dialect='excel')
         for record in reader:
             document = Document(source_id=source.id, **transform(record))
-            print document.__json__()
+            print(document.__json__())
             DBSession.add(document)
 
     DBSession.commit()

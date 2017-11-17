@@ -4,7 +4,7 @@ import numpy as np
 from tsa import logging
 logger = logging.getLogger(__name__)
 
-from itertools import cycle, izip
+from itertools import cycle
 import matplotlib.cm as colormap
 # import matplotlib.dates as mdates
 # plt.rcParams['interactive'] = True
@@ -78,6 +78,6 @@ def distinct_styles():
     # period = 60
     # markers = ['o', 'v', '^', '<', '>', '8', 's', 'p', '*', 'h', 'H', 'D', 'd']
 
-    zipped = izip(cycle(linewidths), cycle(linestyles), cycle(colors))
+    zipped = zip(cycle(linewidths), cycle(linestyles), cycle(colors))
     for linewidth, linestyle, color in zipped:
         yield dict(linewidth=linewidth, linestyle=linestyle, color=color)

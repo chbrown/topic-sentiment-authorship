@@ -16,7 +16,7 @@ def read_xlsx(filepath, sheet_name=None, limit=None):
         # RawCell(row=2, column='A', coordinate='A2', internal_value=4.17036113778479e-05, data_type='n', style_id=None, number_format=None)
         # RawCell(row=3, column='J', coordinate='J3', internal_value=u'MISSING', data_type='s', style_id='2', number_format='General')
         # RawCell(row=4, column='D', coordinate='D4', internal_value=datetime.datetime(2011, 7, 11, 12, 43, 19, 1), data_type='n', style_id='3', number_format='mm-dd-yy')
-        header = rows.next()
+        header = next(rows)
         keys = [cell.internal_value for cell in header]
         for i, row in enumerate(rows):
             if i == limit:
@@ -37,8 +37,8 @@ def read_tsv(filepath, limit=None):
 
 
 def formatter(value):
-    if isinstance(value, basestring):
-        return unicode(value)
+    if isinstance(value, str):
+        return str(value)
     elif isinstance(value, int):
         return '%d' % value
     else:
@@ -60,7 +60,7 @@ class Printer(object):
         self.headers = []
 
     def _emit(self, values):
-        print >> self.output, self.FS.join(formatter(value) for value in values), self.RS,
+        print(self.FS.join(formatter(value) for value in values), self.RS, end=' ', file=self.output)
 
     def add_headers(self, headers):
         # if there are any new strings in new_headers, emit a new line
@@ -70,7 +70,7 @@ class Printer(object):
             self.headers.extend(new_headers)
             if self.headers_printed:
                 # ^^^ signals an updated headers row
-                print >> self.output, '^^^',
+                print('^^^', end=' ', file=self.output)
                 self.headers_printed = True
             self._emit(self.headers)
 

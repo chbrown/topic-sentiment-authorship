@@ -36,9 +36,9 @@ def explore_mispredictions(test_X, test_y, model, test_indices, label_names, doc
     for document_index, gold_label, pred_label in zip(test_indices, test_y, pred_y):
         if gold_label != pred_label:
             # print 'certainty: %0.4f' % certainty
-            print 'gold label (%s=%s) != predicted label (%s=%s)' % (
-                gold_label, label_names[gold_label], pred_label, label_names[pred_label])
-            print 'Document: %s' % documents[document_index]
+            print('gold label (%s=%s) != predicted label (%s=%s)' % (
+                gold_label, label_names[gold_label], pred_label, label_names[pred_label]))
+            print('Document: %s' % documents[document_index])
 
 
 def explore_uncertainty(test_X, test_y, model):
@@ -58,11 +58,11 @@ def explore_uncertainty(test_X, test_y, model):
         # find best guess (same as model.predict(...), I think)
         pred_y = pred_probabilities.argmax(axis=1)
 
-        print '*: certainty mean=%0.5f' % np.mean(pred_certainty)
+        print('*: certainty mean=%0.5f' % np.mean(pred_certainty))
         geom.hist(pred_certainty, range=(0, 1))
-        print 'correct: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y == test_y])
+        print('correct: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y == test_y]))
         geom.hist(pred_certainty[pred_y == test_y], range=(0, 1))
-        print 'incorrect: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y != test_y])
+        print('incorrect: certainty mean=%0.5f' % np.mean(pred_certainty[pred_y != test_y]))
         geom.hist(pred_certainty[pred_y != test_y], range=(0, 1))
     else:
         logger.info('predict_proba is unavailable for this model: %s', model)
@@ -77,8 +77,8 @@ def explore_topics(topic_model, tokens_per_topic=10):
         alignments = zip(tokens, ['%0.3f' % ratio for ratio in ratios])
          # (%0.4f > ratio > %0.4f):' % (, ratios[0], ratios[-1])
         # print ' ', ', '.join(tokens)
-        print 'Topic %d' % topic_i
-        print gloss.gloss(alignments, toksep='  ', prefixes=['  ', '  '])
+        print('Topic %d' % topic_i)
+        print(gloss.gloss(alignments, toksep='  ', prefixes=['  ', '  ']))
 
 
 def average_accuracy(corpus, model, test_size=0.1, n_iter=10):

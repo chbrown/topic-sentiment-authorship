@@ -105,7 +105,7 @@ def iter_corpora():
 
 def grid_plots(analysis_options):
     for corpus, title in iter_corpora():
-        print title
+        print(title)
         grid_plot(corpus)
         plt.title(title)
         plt.savefig(figure_path('model-grid-%s' % title))
@@ -115,10 +115,10 @@ def grid_plots(analysis_options):
 def representation(analysis_options):
     corpus = sb5b_source_corpus()
 
-    print 'Tweets per person, by label'
+    print('Tweets per person, by label')
 
     for class_name in ['For', 'Against']:
-        print 'Class =', class_name
+        print('Class =', class_name)
         indices = corpus.y == corpus.class_lookup[class_name]
         keyfunc = lambda doc: doc.details['Author'].split()[0].lower()
         data = sorted(corpus.data[indices], key=keyfunc)
@@ -127,23 +127,23 @@ def representation(analysis_options):
         lengths = np.array([len(list(group_iter)) for author, group_iter in author_groups])
         # print 'Hist for authors with more than one tweet:'
         # hist(lengths[lengths > 1])
-        print 'Average # of documents per user', lengths.mean()
+        print('Average # of documents per user', lengths.mean())
         inlier_max = np.percentile(lengths, 99)
         inliers = lengths[lengths < inlier_max]
-        print '  ditto excluding 99%-file ({:d}): {:.1f}'.format(
-            lengths.size - inliers.size, inliers.mean())
+        print('  ditto excluding 99%-file ({:d}): {:.1f}'.format(
+            lengths.size - inliers.size, inliers.mean()))
 
     IPython.embed()
 
 
 
 def corpus_sandbox(analysis_options):
-    print 'Exploring SB-5 corpus'
+    print('Exploring SB-5 corpus')
     session = create_session()
     sb5b_documents = session.query(Document).join(Source).\
         filter(Source.name == 'sb5b').all()
 
-    print 'Found %d documents' % len(sb5b_documents)
+    print('Found %d documents' % len(sb5b_documents))
 
     rows = [dict(
         label=document.label,
@@ -161,7 +161,7 @@ def corpus_sandbox(analysis_options):
 
     for document in sb5b_documents:
         # 'weareohio' in document.document.lower(), .document
-        print document.details.get('Source'), document.label
+        print(document.details.get('Source'), document.label)
 
 
     IPython.embed()
@@ -176,7 +176,7 @@ def sb5_self_train(analysis_options):
     incestuous_pred_y = incestuous_model.predict(labeled_corpus.X)
     # evaluate predictions
     # print metrics_summary(labeled_corpus.y, incestuous_pred_y)
-    print 'accuracy on training set after extrapolation', metrics.accuracy_score(labeled_corpus.y, incestuous_pred_y)
+    print('accuracy on training set after extrapolation', metrics.accuracy_score(labeled_corpus.y, incestuous_pred_y))
 
     # we want to compare the confidence of the bootstrap on the things it gets wrong vs. a straight logistic regression
 
@@ -187,9 +187,9 @@ def sb5_self_train(analysis_options):
 
     bootstrap_mean_coef = np.mean(bootstrap_model.coefs_, axis=0)
     bootstrap_var_coef = np.var(bootstrap_model.coefs_, axis=0)
-    print 'bootstrap_model'
+    print('bootstrap_model')
     hist(bootstrap_mean_coef)
-    print '  {:.2%} coefs == 0'.format((bootstrap_mean_coef == 0).mean())
+    print('  {:.2%} coefs == 0'.format((bootstrap_mean_coef == 0).mean()))
 
 
 
@@ -219,8 +219,8 @@ def grid_hist(corpus):
 
     nonzero = coefs_means != 0
     substantial = np.abs(coefs_means) > 0.1
-    print 'nonzero coef density = {:.2%}'.format(nonzero.mean())
-    print '> 0.1 coef density = {:.2%}'.format(substantial.mean())
+    print('nonzero coef density = {:.2%}'.format(nonzero.mean()))
+    print('> 0.1 coef density = {:.2%}'.format(substantial.mean()))
     means = coefs_means[nonzero]
 
     plt.cla()
@@ -243,7 +243,7 @@ def many_models(analysis_options):
     styles = distinct_styles()
     for model_name, model_table in table.groupby(['model']):
         xtab = model_table.pivot_table(values=['accuracy'], rows=['train'], aggfunc=[np.mean])
-        plt.plot(xtab.index, xtab['mean'], label=model_name, **styles.next())
+        plt.plot(xtab.index, xtab['mean'], label=model_name, **next(styles))
 
     plt.ylabel('Accuracy')
     plt.xlabel('# of tweets in training set')
@@ -274,7 +274,7 @@ def sample_errors(analysis_options):
         incorrect_indices = npx.bool_mask_to_indices(pred_y != test_corpus.y)
         # misclassified_docs = test_corpus.data[incorrect]
         # misclassified_proba = pred_proba[incorrect]
-        print 'number incorrect =', len(incorrect_indices)
+        print('number incorrect =', len(incorrect_indices))
 
         # for doc, prob in zip(misclassified_docs, misclassified_proba):
         coefs = model.coef_.ravel()
@@ -288,11 +288,11 @@ def sample_errors(analysis_options):
             # pairs = zip(x_names, ['%.2f' % x for x in x_coefs])
             reordering = np.argsort(x_coefs)
             pairs = zip(x_names[reordering], ['%.2f' % x for x in x_coefs[reordering]])
-            print
-            print '--- %s ---' % test_corpus.labels[test_corpus.y[index]]
-            print '%s (%s)' % (doc.document.replace('\n', ' '), doc.label)
-            print dict(zip(test_corpus.labels[model.classes_], prob))
-            print viz.gloss.gloss([('', 'means')] + pairs + [('SUM', '%.2f' % sum(x_coefs))])
+            print()
+            print('--- %s ---' % test_corpus.labels[test_corpus.y[index]])
+            print('%s (%s)' % (doc.document.replace('\n', ' '), doc.label))
+            print(dict(zip(test_corpus.labels[model.classes_], prob)))
+            print(viz.gloss.gloss([('', 'means')] + pairs + [('SUM', '%.2f' % sum(x_coefs))]))
 
         exit(IPython.embed())
 
@@ -381,20 +381,20 @@ def grid_plot(corpus):
 
     counts = np.array(Counter(corpus.y).values(), dtype=float)
     baseline = counts.max() / counts.sum()
-    print 'baseline:', baseline
+    print('baseline:', baseline)
     styles = distinct_styles()
     for index, group in df.groupby(['model']):
         agg = group.groupby(['train']).aggregate(np.mean)
-        print index  # name of model
+        print(index)  # name of model
         accuracies = agg.ix[[10, 100, 1000]].accuracy
         improvements = 1 - ((1 - accuracies) / (1 - baseline))  # == (accuracies - baseline) / (1 - baseline)
-        print agg  # full cross-tabulation
-        print
-        print 'labels      {:d} & {:d} & {:d}'.format(*accuracies.index)
-        print 'baseline    {0:.2%} & {0:.2%} & {0:.2%}'.format(baseline)
-        print 'accuracy    {:.2%} & {:.2%} & {:.2%}'.format(*accuracies)
-        print 'improvement {:.2%} & {:.2%} & {:.2%}'.format(*improvements)
-        style = styles.next()
+        print(agg)  # full cross-tabulation
+        print()
+        print('labels      {:d} & {:d} & {:d}'.format(*accuracies.index))
+        print('baseline    {0:.2%} & {0:.2%} & {0:.2%}'.format(baseline))
+        print('accuracy    {:.2%} & {:.2%} & {:.2%}'.format(*accuracies))
+        print('improvement {:.2%} & {:.2%} & {:.2%}'.format(*improvements))
+        style = next(styles)
         agg.plot(y='accuracy', label=index, **style)
 
     # IPython.embed()

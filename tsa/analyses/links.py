@@ -25,12 +25,12 @@ def links_scikit():
     count_vectors_index_tokens = count_vectorizer.get_feature_names()
 
     # eg., 1000 documents, 2118-long vocabulary (with brown from the top)
-    print count_vectors_index_tokens.shape
+    print(count_vectors_index_tokens.shape)
 
     pca = decomposition.PCA(2)
     doc_pca_data = pca.fit_transform(tfidf_counts.toarray())
 
-    print doc_pca_data
+    print(doc_pca_data)
 
     # target_vocab = ['man', 'men', 'woman', 'women', 'dog', 'cat', 'today', 'yesterday']
     # for token_type_i, coords in enumerate(vocab_pca_data):
