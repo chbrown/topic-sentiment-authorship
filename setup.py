@@ -1,7 +1,6 @@
-from setuptools import setup, find_packages
-
 import os
 import json
+from setuptools import setup, find_packages
 
 here = os.path.dirname(__file__) or os.curdir
 package = json.load(open(os.path.join(here, 'package.json')))
