@@ -1,13 +1,7 @@
-.DS_Store
 *.log
 *.aux
-*.pyc
 *.pickle
 
 /build/
 /dist/
-/node_modules/
 /*.egg
-/*.egg-info
-
-.ipynb_checkpoints/
