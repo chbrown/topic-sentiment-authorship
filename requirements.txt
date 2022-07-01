@@ -1,6 +1,6 @@
 gensim==0.8.6
 justext==2.0.0
-openpyxl==1.6.2
+openpyxl==2.4.2
 psycopg2==2.5.1
 requests==1.2.3
 sqlalchemy==0.8.2
